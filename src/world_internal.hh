@@ -27,7 +27,7 @@ namespace world
     typedef ecl::Array2<Field> FieldArray;
 
     typedef vector<ForceField*>  ForceList;
-//    typedef vector<StoneContact> StoneContactList;
+    typedef vector<StoneContact> StoneContactList;
     typedef vector<Actor*>       ActorList;
     typedef vector<Signal>       SignalList;
 
@@ -223,12 +223,6 @@ namespace world
             BorderStone() : Stone("borderstone") {}
             Stone *clone() { return this; }
             void dispose() {}
-            virtual const StoneTraits &get_traits() const {
-                static StoneTraits border_traits = {
-                        "INVALID", st_borderstone, stf_none, material_stone, 1.0
-                };
-                return border_traits;
-            }
         };
 
         BorderStone borderstone;
@@ -270,9 +264,7 @@ namespace world
 
         void add_actor (Actor *a);
         void add_actor (Actor *a, const V2 &pos);
-        Actor * yield_actor(Actor *a);
-        void exchange_actors(Actor *a1, Actor *a2);
-        void did_move_actor(Actor *a);
+
         void tick_actor(Actor *a, double dtime);
 
     private:
@@ -286,19 +278,16 @@ namespace world
         void advance_actor (Actor *a, double h);
         void move_actors (double dtime);
         void find_contact_with_stone (Actor *a, GridPos p, StoneContact &c);
-        void find_stone_contacts (Actor *a, StoneContact &c0, StoneContact &c1,
-                StoneContact &c2);
+        void find_stone_contacts (Actor *a, StoneContactList &cl);
         void handle_stone_contact (StoneContact &sc);
         void handle_actor_contacts ();
-        void handle_actor_contact (Actor *actor1, Actor *actor2);
+        void handle_actor_contact (size_t a1, size_t a2);
         void handle_contacts (unsigned actoridx);
         void handle_delayed_impulses (double dtime);
 
         void stone_change (GridPos p);
 
     public:
-    
-        static const double contact_e;  // epsilon distant limit for contacts 
 
         /* ---------- Variables ---------- */
 
@@ -306,8 +295,6 @@ namespace world
         int                  w, h; // Width and height of the level
         ForceList            forces;
         ActorList            actorlist; // List of movable, dynamic objects
-        Actor               *leftmost_actor;   // sorted double linked list of actors
-        Actor               *rightmost_actor;  
         vector<RubberBand *> m_rubberbands;
         SignalList           m_signals;
         MouseForce           m_mouseforce;

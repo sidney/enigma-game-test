@@ -23,7 +23,6 @@
 #include "sound.hh"
 #include "server.hh"
 #include "world.hh"
-//#include "main.hh"
 
 #include <iostream>
 #include <set>
@@ -35,50 +34,8 @@ using ecl::V2;
 
 #include "actors_internal.hh"
 
-const double Actor::max_radius = 24.0/64;
 
-
-/* -------------------- ActorsInRangeIterator -------------------- */
-
-ActorsInRangeIterator::ActorsInRangeIterator(Actor *center, double range, 
-        unsigned type_mask) : centerActor (center), previousActor (center),
-        dir (WEST), rangeDist (range), typeMask (type_mask) {
-    xCenter = center->m_actorinfo.pos[0];
-}
-
-Actor * ActorsInRangeIterator::next() {
-    bool ready = false;
-    while(!ready) {
-        if (previousActor != NULL) {
-            if (dir == WEST) {
-                previousActor = previousActor->left;
-            } else {
-                previousActor = previousActor->right;
-            }
-        }
-        if (dir == WEST && (previousActor == NULL 
-                || xCenter - previousActor->m_actorinfo.pos[0] > rangeDist)) {
-            previousActor = centerActor->right;
-            dir = EAST;
-        }
-        if (dir == EAST && (previousActor == NULL
-                || previousActor->m_actorinfo.pos[0] - xCenter > rangeDist)) {
-            ready = true;
-            previousActor = NULL;
-            continue;
-        }
-        unsigned id_mask = previousActor->get_traits().id_mask;
-        if (id_mask & typeMask) {
-            if (length(previousActor->m_actorinfo.pos - centerActor->m_actorinfo.pos) 
-                    < rangeDist) {
-                ready = true;
-            }
-        }
-    }
-    return previousActor;
-}
-
-
+
 /* -------------------- Helper functions -------------------- */
 
 
@@ -96,7 +53,7 @@ Actor::Actor (const ActorTraits &tr)
   m_sprite(),
   startingpos(), 
   respawnpos(), use_respawnpos(false),
-  spikes(false), controllers (0), left (NULL), right (NULL)
+  spikes(false), controllers (0)
 {
     set_attrib("mouseforce", 0.0);
 
@@ -126,13 +83,14 @@ const ecl::V2 &Actor::get_pos() const
 
 
 double Actor::get_max_radius() {
-    return max_radius;
+    return 24/64.0;
 }
 
 void Actor::think(double /*dtime*/) {
-    if (m_actorinfo.field) {
-        Floor *fl = m_actorinfo.field->floor;
-        Item *it = m_actorinfo.field->item;
+    const Field *f = GetField (get_gridpos());
+    if (f) {
+        Floor *fl = f->floor;
+        Item *it = f->item;
         bool item_covers_floor = (it && it->covers_floor(m_actorinfo.pos));
         if (!item_covers_floor && fl && this->is_on_floor())
             fl->actor_contact(this);
@@ -189,7 +147,6 @@ void Actor::on_respawn (const ecl::V2 &/*pos*/) {
 
 void Actor::warp(const ecl::V2 &newpos) {
     m_actorinfo.pos = newpos;
-    DidMoveActor(this);
     m_actorinfo.vel = V2();
     m_sprite.move (newpos);
     move ();
@@ -197,15 +154,18 @@ void Actor::warp(const ecl::V2 &newpos) {
 
 void Actor::move () 
 {
-    if (m_actorinfo.field) {
-        if (m_actorinfo.gridpos != last_gridpos) {
+    GridPos ofield = gridpos;
+    gridpos = GridPos (m_actorinfo.pos);
+
+    if (const Field *f = GetField (gridpos)) {
+        if (gridpos != ofield) {
             // Actor entered a new field -> notify floor and item objects
-            if (Floor *fl = m_actorinfo.field->floor)
+            if (Floor *fl = f->floor)
                 fl->actor_enter (this);
-            if (Item *it = m_actorinfo.field->item)
+            if (Item *it = f->item)
                 it->actor_enter (this);
 
-            if (const Field *of = GetField(last_gridpos)) {
+            if (const Field *of = GetField (ofield)) {
                 if (Floor *fl = of->floor)
                     fl->actor_leave (this);
                 if (Item *it = of->item)
@@ -213,14 +173,15 @@ void Actor::move ()
             }
         }
 
-        Item *it = m_actorinfo.field->item;
+        Item *it = f->item;
         if (it && it->actor_hit(this))
-            player::PickupItem (this, m_actorinfo.gridpos);
+            player::PickupItem (this, gridpos);
 
-        if (Stone *st = m_actorinfo.field->stone)
+        if (Stone *st = f->stone)
             st->actor_inside (this);
     }
-    last_gridpos = m_actorinfo.gridpos;
+    // move the actor and save the position
+    m_actorinfo.oldpos = m_actorinfo.pos;
 }
 
 void Actor::move_screen () {
@@ -285,8 +246,6 @@ namespace
 {
     /*! The base class for rotors and spinning tops. */
     class RotorBase : public Actor {
-    public:
-        void   set_attrib (const string& key, const Value &val);
     protected:
         RotorBase(const ActorTraits &tr);
     private:
@@ -301,12 +260,7 @@ namespace
 	    SendMessage(a, "shatter");
 	}
 
-        double range;
-        double force;
-        bool   gohome;
-        bool   attacknearest;
-        double prefercurrent;
-        bool   attackCurrentOnly;
+        bool attackCurrentOnly;
         double timeKeepAttackStrategy;
     };
 }
@@ -321,40 +275,36 @@ RotorBase::RotorBase(const ActorTraits &tr)
     set_attrib ("prefercurrent", 0.0);
 }
 
-void RotorBase::set_attrib(const string& key, const Value &val)
-{
-    if (key == "range")
-        range = to_double(val);
-    else if (key == "force") 
-        force = to_double(val);
-    else if (key == "gohome") 
-        gohome = (to_int(val) != 0);
-    else if (key == "attacknearest") 
-        attacknearest = (to_int(val) != 0);
-    else if (key == "prefercurrent") 
-        prefercurrent = to_double(val);
-    Actor::set_attrib (key, val);
-}
-
 void RotorBase::think (double dtime)
 {
-    double cforce = force/6;
+    double range = 0, force = 0;
+    double_attrib("range", &range);
+    double_attrib("force", &force);
+
+    force /= 6;
 
     Actor *target = 0;
     V2     target_vec;
+    bool attack_nearest = (int_attrib ("attacknearest") != 0);
+
+    double preferCurrent;
+    double_attrib("prefercurrent", &preferCurrent);
     timeKeepAttackStrategy  -= dtime;
     if (timeKeepAttackStrategy < 0) {
         timeKeepAttackStrategy = enigma::DoubleRand(0.8, 1.6);
-        attackCurrentOnly = (enigma::DoubleRand(0.0, 1.0) < prefercurrent);
+        attackCurrentOnly = (enigma::DoubleRand(0.0, 1.0) < preferCurrent);
     }
 
-    ActorsInRangeIterator air_it = ActorsInRangeIterator(this, range,
-            1<<ac_whiteball | 1<<ac_blackball | 1<<ac_meditation);
-    Actor *a;
-    while((a = air_it.next()) != NULL) {
-        if (a->is_movable() && !a->is_invisible()) {
+    vector<Actor *> actors;
+    GetActorsInRange (get_pos(), range, actors);
+    for (size_t i=0; i<actors.size(); ++i) {
+        Actor *a = actors[i];
+        ActorID id = get_id (a);
+        if ((id == ac_whiteball || id == ac_blackball || id == ac_meditation) 
+            && a->is_movable() && !a->is_invisible())
+        {
             V2 v = a->get_pos() - get_pos();
-            if (attacknearest && !attackCurrentOnly ||
+            if (attack_nearest && !attackCurrentOnly ||
                     attackCurrentOnly && a == player::GetMainActor(
                     player::CurrentPlayer())) {
                 if (!target || (length(v) < length(target_vec))) {
@@ -368,7 +318,7 @@ void RotorBase::think (double dtime)
         }
     }
 
-    if (!target && gohome) { 
+    if (!target && int_attrib("gohome")) { 
         // no actors focussed -> return to start position
         target_vec = get_respawnpos()-get_pos();
     }
@@ -377,7 +327,7 @@ void RotorBase::think (double dtime)
 
     if (target_dist > 0.2)
         target_vec.normalize();
-    add_force (target_vec * cforce);
+    add_force (target_vec * force);
 
     Actor::think(dtime);
 }
@@ -399,7 +349,6 @@ namespace
 ActorTraits Rotor::traits = {
     "ac-rotor",                 // name
     ac_rotor,                   // id
-    1<<ac_rotor,                // id_mask
     22.0f/64,                   // radius
     0.8f                        // mass
 };
@@ -421,7 +370,6 @@ namespace
 ActorTraits Top::traits = {
     "ac-top",                   // name
     ac_top,                     // id
-    1<<ac_top,                  // id_mask
     16.0f/64,                   // radius
     0.8f                        // mass
 };
@@ -445,7 +393,6 @@ namespace
 ActorTraits Bug::traits = {
     "ac-bug",                   // name
     ac_bug,                     // id
-    1<<ac_bug,                  // id_mask
     12.0f/64,                   // radius
     0.7f                        // mass
 };
@@ -481,7 +428,6 @@ namespace
 ActorTraits Horse::traits = {
     "ac-horse",                 // name
     ac_horse,                   // id
-    1<<ac_horse,                // id_mask
     24.0f/64,                   // radius
     1.2f                        // mass
 };
@@ -492,11 +438,16 @@ Horse::Horse()
   m_target()
 {
     set_attrib("force", Value(10.0));
+    set_attrib("target1", Value());
+    set_attrib("target2", Value());
+    set_attrib("target3", Value());
+    set_attrib("target4", Value());
 }
  
 void Horse::think (double /* dtime */) 
 {
-    double force = getAttr("force");
+    double force = 0;
+    double_attrib("force", &force);
     update_target ();
     if (m_targetidx != -1) {
         add_force (normalize(m_target - get_pos()) * force);
@@ -513,9 +464,7 @@ bool Horse::try_target (int idx) {
     string targetstr;
     GridLoc loc;
 
-    if (Value v = getAttr(attrs[idx-1]))
-        targetstr = v.get_string();
-    else
+    if (!string_attrib (attrs[idx-1], &targetstr))
         return false;
     
     to_gridloc(targetstr.c_str(), loc);
@@ -562,7 +511,6 @@ namespace
 ActorTraits CannonBall::traits = {
     "ac-cannonball",            // name
     ac_cannonball,              // id
-    1<<ac_cannonball,           // id_mask
     24.0/64,                    // radius
     1.0                         // mass
 };
@@ -873,8 +821,8 @@ void BasicBall::sink (double dtime)
     double sink_speed  = 0.0;
     double raise_speed = 0.0;   // at this velocity don't sink; above: raise
 
-    Floor *fl = m_actorinfo.field->floor;
-    Item *it = m_actorinfo.field->item;
+    Item *it = GetItem(get_gridpos());
+    Floor *fl = GetFloor (get_gridpos());
     if (!(it != NULL && it->covers_floor(get_pos())) && fl != NULL)
         fl->get_sink_speed (sink_speed, raise_speed);
     
@@ -1062,8 +1010,8 @@ void BasicBall::change_state(State newstate) {
 
 void BasicBall::disable_shield() {
     if (has_shield()) {
-        m_shield_rest_time = 0;
-        update_halo();
+	m_shield_rest_time = 0;
+	update_halo();
     }
 }
 
@@ -1074,6 +1022,16 @@ bool BasicBall::has_shield() const {
 void BasicBall::update_halo() {
     HaloState newstate = m_halostate;
 
+    double radius = get_actorinfo()->radius;
+    string halokind;
+
+    // Determine which halomodel has to be used:
+    if (radius == 19.0/64) { // Halo for normal balls
+        halokind="halo";
+    }else if (radius == 13.0f/64) { // Halo for small balls
+        halokind="halo-small";
+    }
+
     if (m_shield_rest_time <= 0)
         newstate = NOHALO;
     else if (m_shield_rest_time <= 3.0)
@@ -1082,19 +1040,9 @@ void BasicBall::update_halo() {
         newstate = HALONORMAL;
 
     if (newstate != m_halostate) {
-        double radius = get_actorinfo()->radius;
-        string halokind;
-    
-        // Determine which halomodel has to be used:
-        if (radius == 19.0/64) { // Halo for normal balls
-            halokind = "halo";
-        } else if (radius == 13.0f/64) { // Halo for small balls
-            halokind = "halo-small";
-        }
-
-        if (m_halostate == NOHALO){
-            m_halosprite = display::AddSprite (get_pos(), halokind.c_str());
-        }
+	if (m_halostate == NOHALO){
+	   m_halosprite = display::AddSprite (get_pos(), halokind.c_str());
+    }
         switch (newstate) {
         case NOHALO:
             // remove halo
@@ -1110,7 +1058,8 @@ void BasicBall::update_halo() {
             break;
         }
         m_halostate = newstate;
-    } else if (m_halostate != NOHALO) {
+    }
+    else if (m_halostate != NOHALO) {
         m_halosprite.move (get_pos());
     }
 }
@@ -1191,7 +1140,6 @@ namespace
 ActorTraits BlackBall::traits = {
     "ac-blackball",             // name
     ac_blackball,               // id
-    1<<ac_blackball,            // id_mask
     19.0/64,                    // radius
     1.0                         // mass
 };
@@ -1199,7 +1147,6 @@ ActorTraits BlackBall::traits = {
 ActorTraits WhiteBall::traits = {
     "ac-whiteball",             // name
     ac_whiteball,               // id
-    1<<ac_whiteball,            // id_mask
     19.0/64,                    // radius
     1.0                         // mass
 };
@@ -1207,7 +1154,6 @@ ActorTraits WhiteBall::traits = {
 ActorTraits WhiteBall_Small::traits = {
     "ac-whiteball-small",       // name
     ac_meditation,              // id
-    1<<ac_meditation,           // id_mask
     13.0f/64,                   // radius
     0.7f                        // mass
 };
@@ -1215,7 +1161,6 @@ ActorTraits WhiteBall_Small::traits = {
 ActorTraits Killerball::traits = {
     "ac-killerball",            // name
     ac_killerball,              // id
-    1<<ac_killerball,           // id_mask
     13.0f/64,                   // radius
     0.7f                        // mass
 };

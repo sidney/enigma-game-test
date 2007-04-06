@@ -111,20 +111,17 @@ static std::fstream logfile;
 
 static void usage()
 {
-    printf("Usage: %s [OPTION]... [levelfile.xml]...\n\n"
+    printf("Usage: %s [options] [level files]\n\n"
            "Available options :\n\n"
-           "    --assert       Evaluate all debugging assertions\n"
-           "    --data -d path Load data from additional directory\n"
-           "    --help -h      Show this help\n"
-           "    --lang -l lang Set game language\n"
-           "    --log          Turn on logging to the standard output\n"
-           "    --nograb       Do not use exclusive mouse/keyboard access\n"
+           "    --nosound      Disable music and sound\n"
            "    --nomusic      Disable music\n"
-           "    --nosound      Disable music and sound effects\n"
-           "    --pref -p file Use filename for preferences\n"
-           "    --showfps      Show the framerate (FPS) during the Game\n"
-           "    --version      Print the executable's version number\n"
            "    --window -w    Run in a window; do not enter fullscreen mode\n"
+           "    --help -h      Show this help\n"
+           "    --version      Print the executable's version number\n"
+           "    --nograb       Do not use exclusive mouse/keyboard access\n"
+           "    --data -d path Load data from additional directory\n"
+           "    --lang -l lang Set game language\n"
+           "    --pref -p file Use filename for preferences\n"
            "\n",
            app.progCallPath.c_str()
            );
@@ -139,7 +136,7 @@ namespace
 
         // Variables.
         bool nosound, nomusic, show_help, show_version, do_log, do_assert, force_window;
-        bool dumpinfo, makepreview, show_fps;
+        bool dumpinfo, makepreview;
         string gamename;
         string datapath;
         string preffilename;
@@ -165,7 +162,7 @@ namespace
 AP::AP() : ArgParser (app.args.begin(), app.args.end())
 {
     nosound  = nomusic = show_help = show_version = do_log = do_assert = force_window = false;
-    dumpinfo = makepreview = show_fps = false;
+    dumpinfo = makepreview = false;
     gamename = "";
     datapath = "";
     preffilename = PREFFILENAME;
@@ -180,7 +177,6 @@ AP::AP() : ArgParser (app.args.begin(), app.args.end())
     def (&do_assert,            "assert");
     def (&dumpinfo,             "dumpinfo");
     def (&makepreview,          "makepreview");
-    def (&show_fps,             "showfps");
     def (&force_window,         "window", 'w');
     def (OPT_GAME,              "game", true);
     def (OPT_DATA,              "data", 'd', true);
@@ -337,7 +333,7 @@ void Application::init(int argc, char **argv)
     }
 
     // ----- Load models
-    display::Init(ap.show_fps);
+    display::Init();
 
     // initialize application state
     state = StateManager::instance();

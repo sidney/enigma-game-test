@@ -24,7 +24,6 @@
 #include "player.hh"
 #include "Inventory.hh"
 #include "stones_internal.hh"
-//#include "main.hh"
 
 #include "ecl_util.hh"
 
@@ -302,11 +301,12 @@ void PullStone::on_impulse(const Impulse& impulse)
     vector<Actor*>::iterator e = found_actors.end();
     for (vector<Actor*>::iterator i = found_actors.begin(); i != e; ++i) {
         Actor     *actor     = *i;
-        GridPos    actor_pos(actor->get_pos());
+        ActorInfo *ai        = actor->get_actorinfo();
+        GridPos    actor_pos(ai->pos);
 
         if (actor_pos == newPos) { // if the actor is in the dest field
-            V2 vel = actor->get_vel();
-            V2 mid_dest = actor->get_pos();
+            V2 vel = ai->vel;
+            V2 mid_dest = ai->pos;
 
             mid_dest[0] = ecl::Clamp<double> (mid_dest[0], oldPos.x+0.01, oldPos.x+0.99);
             mid_dest[1] = ecl::Clamp<double> (mid_dest[1], oldPos.y+0.01, oldPos.y+0.99);
@@ -342,7 +342,7 @@ namespace
         bool is_floating() const { return true; }
 
         Direction get_orientation() const {
-            return to_direction(getAttr("orientation"));
+            return Direction(int_attrib("orientation"));
         }
         void set_orientation(Direction dir) {
             set_attrib("orientation", Value(dir));
@@ -367,7 +367,7 @@ namespace
     private:
         CLONEOBJ(OneWayStone_black);
         virtual bool actor_may_pass (Actor *a) {
-            return a->getAttr("blackball") != 0;
+            return a->get_attrib("blackball") != 0;
         }
         void actor_hit (const StoneContact&) {
             // do nothing if hit by actor
@@ -381,7 +381,7 @@ namespace
     private:
         CLONEOBJ(OneWayStone_white);
         virtual bool actor_may_pass (Actor *a) {
-            return a->getAttr("whiteball") != 0;
+            return a->get_attrib("whiteball") != 0;
         }
         void actor_hit (const StoneContact&) {
             // do nothing if hit by actor
@@ -403,7 +403,7 @@ void OneWayBase::init_model()
 }
 
 Value OneWayBase::message(const string& msg, const Value &val) {
-    if (msg == "direction" && val.getType() == Value::DOUBLE) {
+    if (msg == "direction" && val.get_type() == Value::DOUBLE) {
         set_orientation(to_direction(val));
         init_model();
     }
@@ -472,7 +472,7 @@ namespace
 
 
         Direction get_dir() const {
-            return to_direction(getAttr("direction"));
+            return static_cast<Direction>(int_attrib("direction"));
         }
         void set_dir(Direction d) {
             if (d != get_dir())
@@ -798,7 +798,7 @@ namespace {
 DirectionBits
 ConnectiveStone::get_connections() const
 {
-    int conn = (int)getAttr("connections") - 1;
+    int conn=int_attrib("connections") - 1;
     if (conn >=0 && conn <16)
         return DirectionBits(conn);
     else
@@ -810,7 +810,7 @@ void ConnectiveStone::init_model() {
 }
 
 int ConnectiveStone::get_modelno() const {
-    return getAttr("connections");
+    return int_attrib("connections");
 }
 
 
@@ -930,7 +930,7 @@ namespace
 
         /* ---------- Private methods ---------- */
 
-        bool oxyd1_compatible() const { return getAttr("oxyd") != 0; }
+        bool oxyd1_compatible() const { return int_attrib("oxyd") != 0; }
 
         static bool visit_dir(vector<GridPos> &stack, GridPos curpos,
                               Direction dir, int wanted_oxyd_attrib);
@@ -1004,7 +1004,7 @@ bool PuzzleStone::visit_dir(vector<GridPos> &stack, GridPos curpos,
     GridPos newpos = move(curpos, dir);
     PuzzleStone *pz = dynamic_cast<PuzzleStone*>(GetStone(newpos));
 
-    if ((!pz) || (wanted_oxyd_attrib != (int)pz->getAttr("oxyd")))
+    if ((!pz) || (wanted_oxyd_attrib != pz->int_attrib("oxyd")))
         return false;
 
     DirectionBits cfaces = pz->get_connections();
@@ -1033,7 +1033,7 @@ bool PuzzleStone::find_cluster(Cluster &cluster) {
     bool is_complete = true;
     pos_stack.push_back(get_pos());
     this->visited = true;
-    int wanted_oxyd_attrib = getAttr("oxyd");
+    int wanted_oxyd_attrib = int_attrib("oxyd");
 
     while (!pos_stack.empty())
     {
@@ -1067,7 +1067,7 @@ void PuzzleStone::visit_adjacent (vector<GridPos>& stack, GridPos curpos,
     GridPos newpos = move(curpos, dir);
     if (PuzzleStone *pz = dynamic_cast<PuzzleStone*>(GetStone(newpos))) {
         if (!pz->visited) {
-            if (wanted_oxyd_attrib == (int)pz->getAttr("oxyd")) {
+            if (wanted_oxyd_attrib == pz->int_attrib("oxyd")) {
                 pz->visited = true;
                 stack.push_back(newpos);
             }
@@ -1087,7 +1087,7 @@ void PuzzleStone::find_adjacents(Cluster &cluster) {
     pos_stack.push_back(get_pos());
     this->visited = true;
 
-    int wanted_oxyd_attrib = getAttr("oxyd");
+    int wanted_oxyd_attrib = int_attrib("oxyd");
 
     while (!pos_stack.empty()) {
         GridPos curpos = pos_stack.back();
@@ -1114,7 +1114,7 @@ void PuzzleStone::find_row_or_column_cluster(Cluster &c, GridPos startpos,
 
     GridPos p = startpos;
     while (Stone *puzz = dynamic_cast<PuzzleStone*>(GetStone(p))) {
-        if (wanted_oxyd_attrib != -1 && wanted_oxyd_attrib != (int)puzz->getAttr("oxyd"))
+        if (wanted_oxyd_attrib != -1 && wanted_oxyd_attrib != puzz->int_attrib("oxyd"))
             break; // stop when an unrequested puzzle stone type is readed
         c.push_back(p);
         p.move(dir);
@@ -1218,7 +1218,7 @@ bool PuzzleStone::cluster_complete() {
 }
 
 int PuzzleStone::get_modelno() const {
-    int modelno = getAttr("connections");
+    int modelno = int_attrib("connections");
     if (oxyd1_compatible()) modelno += 16;
     return modelno;
 }
@@ -1226,10 +1226,10 @@ int PuzzleStone::get_modelno() const {
 void PuzzleStone::rotate_cluster(const Cluster &c) {
     size_t size = c.size();
     if (size > 1) {
-        int cn = GetStone(c[size-1])->getAttr("connections");
+        int cn = GetStone(c[size-1])->int_attrib("connections");
         for (size_t i=size-1; i>0; --i) {
             PuzzleStone *st = dynamic_cast<PuzzleStone*> (GetStone (c[i]));
-            st->set_attrib ("connections", GetStone(c[i-1])->getAttr("connections"));
+            st->set_attrib ("connections", GetStone(c[i-1])->int_attrib ("connections"));
             st->init_model();
         }
         GetStone(c[0])->set_attrib ("connections", cn);
@@ -1254,7 +1254,7 @@ void PuzzleStone::trigger_explosion_at (GridPos p, double delay,
                                         int wanted_oxyd_attrib)
 {
     PuzzleStone *puzz = dynamic_cast<PuzzleStone*>(GetStone(p));
-    if (puzz && wanted_oxyd_attrib == (int)puzz->getAttr("oxyd")) {
+    if (puzz && wanted_oxyd_attrib == puzz->int_attrib("oxyd")) {
         // explode adjacent puzzle stones of same type
         puzz->trigger_explosion(delay);
     }
@@ -1262,7 +1262,7 @@ void PuzzleStone::trigger_explosion_at (GridPos p, double delay,
 
 void PuzzleStone::explode() {
     GridPos p       = get_pos();
-    int     ox_attr = getAttr("oxyd");
+    int     ox_attr = int_attrib("oxyd");
 
     // exchange puzzle stone with explosion
     sound_event("stonedestroy");
@@ -1408,7 +1408,7 @@ void PuzzleStone::maybe_rotate_cluster(Direction dir)
 {
     if (dir != NODIR) {
         Cluster c;
-        find_row_or_column_cluster(c, get_pos(), dir, (int)getAttr("oxyd"));
+        find_row_or_column_cluster(c, get_pos(), dir, int_attrib ("oxyd"));
         if (c.size() >= 2) {
 //             warning("ok -> rotate");
             rotate_cluster(c);
@@ -1653,7 +1653,8 @@ namespace
         virtual string closing_sound() const { return "doorclose"; }
         virtual const char *collision_sound() { return "electric"; }
         string get_type() const {
-            string type(getAttr("type", "h"));
+            string type="h";
+            string_attrib("type", &type);
             return type;
         }
 
@@ -1771,7 +1772,7 @@ namespace
 }
 
 ShogunStone::Holes ShogunStone::get_holes() const {
-    int h = getAttr("holes");
+    int h=int_attrib("holes");
     if (h>=1 && h<=7)
         return Holes(h);
     else {
@@ -1829,7 +1830,7 @@ void ShogunStone::on_impulse(const Impulse& impulse) {
         init_model();
     }
     else {
-        if (Value v = getAttr("name")) old_name = v.get_string(); // store name of disappearing stone
+        string_attrib("name", &old_name); // store name of disappearing stone
         SendMessage(GetItem(my_pos), "noshogun");
         KillStone(my_pos);
     }
@@ -1884,7 +1885,7 @@ namespace
 
         virtual Value message(const string &m, const Value &value) {
             if (m=="trigger") {
-                incoming = (value.getType() == Value::DOUBLE)
+                incoming = (value.get_type() == Value::DOUBLE)
                     ? Direction( static_cast<int> (value.get_double()+0.1))
                     : NODIR;
 
@@ -2240,18 +2241,22 @@ void OxydStone::shuffle_colors()
             OxydStone *o1 = instances[closed_oxyds[i]];
             OxydStone *o2 = instances[closed_oxyds[a]];
 
-            Value icolor = o1->getAttr("color"); 
+            string icolor, acolor;
+            o1->string_attrib("color", &icolor);
+            o2->string_attrib("color", &acolor);
 
-            o1->set_attrib("color", o2->getAttr("color"));
-            o2->set_attrib("color", icolor);
+            o1->set_attrib("color", acolor.c_str());
+            o2->set_attrib("color", icolor.c_str());
         }
     }
 }
 
 void OxydStone::change_state(State newstate) 
 {
-    string flavor(getAttr("flavor","a"));
-    string color(getAttr("color", "1"));
+    string flavor = "a";
+    string color = "1";
+    string_attrib("flavor", &flavor);
+    string_attrib("color", &color);
 
     string modelname = string("st-oxyd") + flavor + color;
 
@@ -2268,7 +2273,7 @@ void OxydStone::change_state(State newstate)
         break;
 
     case OPEN:
-    	if (oldstate == CLOSED) {
+	if (oldstate == CLOSED) {
             sound_event("oxydopen");
             sound_event("oxydopened");
             set_anim(modelname+"-opening");
@@ -2278,7 +2283,8 @@ void OxydStone::change_state(State newstate)
         /* If this was the last closed oxyd stone, finish the
            level */
         if (find_if(instances.begin(),instances.end(),not_open)
-                == instances.end()) {
+            ==instances.end())
+        {
             server::FinishLevel();
         }
         break;
@@ -2301,7 +2307,7 @@ void OxydStone::change_state(State newstate)
         sound_event("oxydclose");
         if (oldstate == OPENING)
             get_model()->reverse();
-    	else if (oldstate == BLINKING || oldstate == OPEN) {
+	else if (oldstate == BLINKING || oldstate == OPEN) {
             set_anim(modelname + "-closing");
         }
         break;
@@ -2319,7 +2325,7 @@ void OxydStone::animcb() {
 
 void OxydStone::maybe_open_stone() {
     if (state == CLOSED || state == CLOSING) {
-        Value mycolor = getAttr("color");
+        int mycolor = int_attrib("color");
 
         // Is another oxyd stone currently blinking?
         InstanceList::iterator i;
@@ -2334,10 +2340,10 @@ void OxydStone::maybe_open_stone() {
                 // open both stones. Close one of them otherwise.
                 // (This is the Oxyd behaviour; it doesn't work with
                 // some Enigma levels.)
-                can_open = (mycolor == (*i)->getAttr("color") && (*i)->state==BLINKING);
+                can_open = (mycolor == (*i)->int_attrib("color") && (*i)->state==BLINKING);
             }
             else 
-                can_open = (mycolor == (*i)->getAttr("color"));
+                can_open = (mycolor == (*i)->int_attrib("color"));
 
             if (can_open) {
                 change_state(OPEN);
@@ -2360,13 +2366,18 @@ void OxydStone::actor_hit(const StoneContact &/*sc*/) {
 
 void OxydStone::on_creation (GridPos) 
 {
-    string flavor(getAttr("flavor", "a"));
+    string flavor = "a";
+    string_attrib("flavor", &flavor);
     set_model(string("st-oxyd") + flavor);
     photo_activate();
 }
 
 bool OxydStone::is_removable() const {
-    return !getAttr("static").to_bool();
+    const Value* isStatic = get_attrib("static");
+    if (isStatic != NULL)
+        return !to_bool(*isStatic);
+    else
+        return true;
 }
 
 void OxydStone::on_removal(GridPos p) 
@@ -2963,7 +2974,7 @@ namespace
 
     string ChessStone::get_model_name() {
         string mname = get_kind();
-        mname += (getAttr("color") == 0) ? "_black" : "_white";
+        mname += int_attrib("color") == 0.0 ? "_black" : "_white";
         return mname;
     }
 
@@ -3011,10 +3022,10 @@ namespace
     void ChessStone::actor_hit(const StoneContact &sc) {
          if (player::WieldedItemIs (sc.actor, "it-magicwand")) {
              sound_event ("stonepaint");
-             set_color(1 - (int)getAttr("color"));
+             set_color(1 - int_attrib("color"));
              // If not IDLE, color will be set next time IDLE is set.
-         } else if ((sc.actor->getAttr("blackball") && getAttr("color") == 0)
-                    || (sc.actor->getAttr("whiteball") && getAttr("color") == 1)) {
+         } else if ((sc.actor->get_attrib("blackball") && int_attrib("color") == 0)
+                    || (sc.actor->get_attrib("whiteball") && int_attrib("color") == 1)) {
             V2 v = sc.actor->get_vel();
             Direction dir1 = get_push_direction(sc);
             if(dir1 == NODIR)  return;
@@ -3060,6 +3071,7 @@ namespace
             } else {
                 // Test stone. Is it opposite chess stone or totally another one?
                 Stone *st = GetStone(destination);
+                const Value *col = get_attrib("color");
                 if(to_int(SendMessage(st, "capture", Value(get_model_name()))) ) {
                     // Give it some time for animation, then replace it.
                     ASSERT(try_state(CAPTURING), XLevelRuntime,
@@ -3097,7 +3109,7 @@ namespace
 
     Value ChessStone::message(const string &msg, const Value &v) {
         if(msg == "capture") {
-            if(state == IDLE && v.to_string() != get_model_name())
+            if(state == IDLE && to_string(v) != get_model_name())
                 if(try_state(CAPTURED)) {
                     set_anim(get_model_name() + "-captured");
                     return Value(1);
@@ -3112,11 +3124,11 @@ namespace
         else   if(msg == "move_wwn") { return message_move(WEST, NORTH); }
         else   if(msg == "move_nnw") { return message_move(NORTH, WEST); }
         else   if(msg == "move") {
-            Direction dir1 = to_direction(getAttr("direction1"));
-            Direction dir2 = to_direction(getAttr("direction2"));
+            Direction dir1 = (Direction) int_attrib("direction1");
+            Direction dir2 = (Direction) int_attrib("direction2");
             return message_move(dir1, dir2);
         } else if(msg == "signal") { set_color(to_int(v)); }
-        else   if(msg == "flip") { set_color(1 - (int)getAttr("color")); }
+        else   if(msg == "flip") { set_color(1 - int_attrib("color")); }
         else
             return Stone::message(msg, v);
         return Value();
@@ -3141,7 +3153,7 @@ namespace
                 rememberSwamp = true;
             else
                 state = newstate;        
-            if(state == IDLE &&  getAttr("color") != newcolor)
+            if(state == IDLE && newcolor != int_attrib("color"))
                 set_color(newcolor);
             if(state == IDLE && rememberFalling) {
                 state = FALLING;
@@ -3267,17 +3279,19 @@ namespace
                 the force resulting from floor->add_force. "baseinterval"
                 is 50 ms or the interval given in "interval".
             */
-            double base = getAttr("interval", 0.05);
-            if (Value f = getAttr("friction_factor"))
-                base *= 1.0 + (double)f * GetFloor(get_pos())->get_friction();
-            if (Value g = getAttr("gradient_factor"))
+            double base = 0.05;
+            if (const Value *v = this->get_attrib("interval")) 
+                base = to_double(*v);
+            if (const Value *f = this->get_attrib("friction_factor"))
+                base *= 1.0 + to_double(*f) * GetFloor(get_pos())->friction();
+            if (const Value *g = this->get_attrib("gradient_factor"))
                 if (skateDir != NODIR) {
                     V2 vec = V2(0.0,0.0);
                     double quot = 0;
                     GetFloor(get_pos())->add_force(0, vec);
                     quot = skateDir == NORTH ? -vec[1] : skateDir == SOUTH ? vec[1] :
                         skateDir == EAST ? vec[0] : skateDir == WEST ? -vec[0] : 0;
-                    base /= max(1.0 + (double)g * quot, 0.01);                    
+                    base /= max(1.0 + to_double(*g) * quot, 0.01);                    
                 }
             return max(base, 0.02);
         }

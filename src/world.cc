@@ -93,13 +93,13 @@ namespace {
 
 /*! Find an already existing contact point in the ContactList that is
   similar to the second argument. */
-    bool has_nearby_contact (const Contact *ca, int ca_count, const Contact &c)
+    bool has_nearby_contact (const ContactList &cl, const Contact &c)
     {
         double posdelta = 0.2;
         double normaldelta = 0.1;
-        for (int i=0; i<ca_count; ++i) {
-            if (length (ca[i].pos - c.pos) < posdelta
-                && length (ca[i].normal - c.normal) < normaldelta)
+        for (size_t i=0; i<cl.size(); ++i) {
+            if (length (cl[i].pos - c.pos) < posdelta
+                && length (cl[i].normal - c.normal) < normaldelta)
                 return true;
         }
         return false;
@@ -109,14 +109,16 @@ namespace {
 
 /* -------------------- ActorInfo -------------------- */
 
-ActorInfo::ActorInfo() : pos(), gridpos(), field(NULL), vel(), forceacc(),
-        charge(0), mass(1), radius(1),
-        grabbed(false), ignore_contacts (false), force(),
-//        grabbed(false), ignore_contacts (false), last_pos(), force(),
-        contacts (&contacts_a[0]), last_contacts (&contacts_b[0]),
-        contacts_count (0), last_contacts_count (0) {
-}
+ActorInfo::ActorInfo()
+: pos(), vel(), forceacc(),
+  charge(0), mass(1), radius(1),
+  grabbed(false), ignore_contacts (false),
+  last_pos(), oldpos(), force(),
+  contacts(), new_contacts()
+{}
 
+
+
 /* -------------------- Messages -------------------- */
 
 Message::Message ()
@@ -426,12 +428,9 @@ void Layer<T>::set(GridPos p, T *x) {
 
 /* -------------------- World -------------------- */
 
-const double World::contact_e = 0.02;  // epsilon distant limit for contacts
-
 World::World(int ww, int hh) 
 : fields(ww,hh),
-  preparing_level(true),
-  leftmost_actor (NULL), rightmost_actor (NULL)
+  preparing_level(true)
 {
     w = ww;
     h = hh;
@@ -475,8 +474,9 @@ void World::name_object (Object *obj, const std::string &name)
 void World::unname (Object *obj)
 {
     ASSERT(obj, XLevelRuntime, "unname: no object given");
-    if (Value v = obj->getAttr("name")) {
-        m_objnames.remove(v.to_string());
+    string name;
+    if (obj->string_attrib("name", &name)) {
+        m_objnames.remove(name);
         obj->set_attrib("name", "");
     }
 }
@@ -489,66 +489,12 @@ void World::add_actor (Actor *a)
 void World::add_actor (Actor *a, const V2 &pos)
 {
     actorlist.push_back(a);
-    a->m_actorinfo.pos = pos;
-    a->m_actorinfo.gridpos = GridPos(pos);
-    a->m_actorinfo.field = get_field(a->m_actorinfo.gridpos);
-    
-    // Insert the actor as new rightmost_actor and (maybe) sort.
-    // This makes use of did_move_actor. See version 1.1, rev.549
-    // for explicit code without did_move_actor.
-
-    Actor *oldright = rightmost_actor;
-
-    a->left = oldright; // might be NULL
-    a->right = NULL;
-    rightmost_actor = a;
-    if(leftmost_actor == NULL)
-        leftmost_actor = a;
-    if(oldright != NULL) {
-        oldright->right = a;
-        did_move_actor(a);
-    }
-    
+    a->get_actorinfo()->pos = pos;
     if (!preparing_level) {
         // if game is already running, call on_creation() from here
         a->on_creation(pos);
     }
 }
-
-Actor * World::yield_actor(Actor *a) {
-    ActorList::iterator i = find(actorlist.begin(), actorlist.end(), a);
-    if (i != actorlist.end()) {
-        actorlist.erase(i);
-        
-        if (a->left == NULL)
-            leftmost_actor = a->right;
-        else
-            a->left->right = a->right;
-        
-        if (a->right == NULL)
-            rightmost_actor = a->left;
-        else
-            a->right->left = a->left;    
-
-        a->left = NULL;
-        a->right = NULL;
-        
-        GrabActor(a);
-        return a;
-    }
-    return NULL;
-}
-
-void World::exchange_actors(Actor *a1, Actor *a2) {
-    // Exchange actor positions and sort via did_move_actor.
-    // A version without did_move_actor is in version 1.1, rev.549.
-    ecl::V2 oldpos_a1 = a1->get_actorinfo()->pos;
-    a1->get_actorinfo()->pos = a2->get_actorinfo()->pos;
-    did_move_actor(a1);
-    a2->get_actorinfo()->pos = oldpos_a1;
-    did_move_actor(a2);
-}
-
 
 void World::tick (double dtime)
 {
@@ -636,7 +582,8 @@ V2 World::get_local_force (Actor *a)
     V2 f;
 
     if (a->is_on_floor()) {
-        if (Floor *floor = a->m_actorinfo.field->floor) {
+        const Field *field = GetField (a->get_gridpos());
+        if (Floor *floor = field->floor) {
             // Constant force
             m_flatforce.add_force(a, f);
 
@@ -644,7 +591,7 @@ V2 World::get_local_force (Actor *a)
             add_mouseforce (a, floor, f);
 
             // Friction
-            double friction = floor->get_friction();
+            double friction = floor->friction();
             if (a->has_spikes())
                 friction += 7.0;
 
@@ -660,7 +607,7 @@ V2 World::get_local_force (Actor *a)
             floor->add_force(a, f);
         }
 
-        if (Item *item = a->m_actorinfo.field->item) 
+        if (Item *item = field->item) 
             item->add_force(a, f);
     }
 
@@ -698,6 +645,22 @@ V2 World::get_global_force (Actor *a)
 
 /* -------------------- Collision handling -------------------- */
 
+struct Ball {
+    ecl::V2 c;                   // center
+    double r;                   // radius
+};
+
+struct Oblong {
+    ecl::V2 c;                   // center
+    double w;                   // width
+    double h;                   // height
+    double erad;                // edge radius
+};
+
+// static void contact_ball_oblong ()
+// {
+// }
+
 /* Determine whether an actor is in contact with a stone at position
    `p'.  The result is returned in `c'.  Three situations can occur:
 
@@ -712,22 +675,28 @@ V2 World::get_global_force (Actor *a)
       is filled is filled with information about the closest feature
       on the stone and `is_contact' is set to false. 
 */
-void World::find_contact_with_stone(Actor *a, GridPos p, StoneContact &c) 
+void World::find_contact_with_stone (Actor *a, GridPos p, StoneContact &c) 
 {
     c.is_contact = false;
+
+    const ActorInfo &ai = *a->get_actorinfo();
+    double r = ai.radius;
+//     Ball b (a->get_pos(), ai.radius);
+//     Oblong o (p.center(), 1, 1, 2.0 / 32);
+
+    V2 centerdist = a->get_pos() - p.center();
+    if  (square (centerdist) > 1.0)
+        return;
 
     Stone *stone = world::GetStone(p);
     if (!stone)
         return;
 
-    const ActorInfo &ai = *a->get_actorinfo();
-    double r = ai.radius;
-
     int x = p.x, y = p.y;
 
     double ax = ai.pos[0];
     double ay = ai.pos[1];
-//    const double contact_e = 0.02;
+    const double contact_e = 0.02;
     const double erad = 2.0/32; // edge radius
 
     // Closest feature == north or south face of the stone?
@@ -788,78 +757,37 @@ void World::find_contact_with_stone(Actor *a, GridPos p, StoneContact &c)
         c.ignore   = false;
         c.actor    = a;
         c.stonepos = p;
-        c.stoneid  = stone->get_traits().id;
         c.response = stone->collision_response(c);
         c.sound    = stone->collision_sound();
     }
 }
 
-void World::find_stone_contacts(Actor *a, StoneContact &c0, StoneContact &c1,
-        StoneContact &c2) {
-    // time critical routine that is performance optimized
-    
-    c0.is_contact = false;
-    c1.is_contact = false;
-    c2.is_contact = false;
-    
+void World::find_stone_contacts (Actor *a, StoneContactList &cl)
+{
     ActorInfo &ai = *a->get_actorinfo();
-    double re = ai.radius + contact_e;
-    GridPos g = GridPos(round_down<int>(ai.pos[0]), round_down<int>(ai.pos[1]));
-    double x = ai.pos[0];
-    double y = ai.pos[1];
-    
-    // distinguish 9 squares within gridpos that may cause contacts
-    // low cost reduction of cases that need to be examined in detail
-    if (y - g.y < re) {
-        // upper grid part
-        if (x - g.x < re) {
-            // upper left edge
-            find_contact_with_stone(a, GridPos(g.x - 1, g.y - 1), c0);
-            find_contact_with_stone(a, GridPos(g.x, g.y - 1), c1);
-            find_contact_with_stone(a, GridPos(g.x - 1, g.y), c2);
-            maybe_join_contacts (c0, c1);
-            maybe_join_contacts (c0, c2);
-        } else if (-x + (g.x + 1) < re) {
-            // upper right edge
-            find_contact_with_stone(a, GridPos(g.x, g.y - 1), c0);
-            find_contact_with_stone(a, GridPos(g.x + 1, g.y -1), c1);
-            find_contact_with_stone(a, GridPos(g.x + 1, g.y), c2);
-            maybe_join_contacts (c0, c1);
-            maybe_join_contacts (c1, c2);
-        } else {
-            // upper middle part
-            find_contact_with_stone(a, GridPos(g.x, g.y - 1), c0);
+    ecl::Rect r(round_down<int>(ai.pos[0]-0.5), round_down<int>(ai.pos[1]-0.5), 1, 1);
+
+    static StoneContact contacts[2][2];
+
+    // Test for collisions with the nearby stones
+    int ncontacts = 0;
+    for (int i=r.w; i>=0; --i) {
+        for (int j=r.h; j>=0; --j) {
+            GridPos p (r.x + i, r.y + j);
+            find_contact_with_stone(a, p, contacts[i][j]);
+            ncontacts += contacts[i][j].is_contact;
         }
-    } else if (-y + (g.y +1) < re) {
-        // lower grid part
-        if (x - g.x < re) {
-            // lower left edge
-            find_contact_with_stone(a, GridPos(g.x - 1, g.y), c0);
-            find_contact_with_stone(a, GridPos(g.x - 1, g.y + 1), c1);
-            find_contact_with_stone(a, GridPos(g.x, g.y + 1), c2);
-            maybe_join_contacts (c0, c1);
-            maybe_join_contacts (c1, c2);
-        } else if (-x + (g.x + 1) < re) {
-            // lower right edge
-            find_contact_with_stone(a, GridPos(g.x + 1, g.y), c0);
-            find_contact_with_stone(a, GridPos(g.x, g.y +1), c1);
-            find_contact_with_stone(a, GridPos(g.x + 1, g.y + 1), c2);
-            maybe_join_contacts (c0, c2);
-            maybe_join_contacts (c1, c2);
-        } else {
-            // lower middle part
-            find_contact_with_stone(a, GridPos(g.x, g.y + 1), c0);
-        }
-    } else {
-        // middle grid part
-        if (x - g.x < re) {
-            // left middle part
-            find_contact_with_stone(a, GridPos(g.x - 1, g.y), c0);
-        } else if (-x + (g.x + 1) < re) {
-            // right middle part
-            find_contact_with_stone(a, GridPos(g.x + 1, g.y), c0);
-        }
-        // no contact possible if actor in center of grid
+    }
+    if (ncontacts > 0) {
+        maybe_join_contacts (contacts[0][0], contacts[1][0]);
+        maybe_join_contacts (contacts[0][0], contacts[0][1]);
+        maybe_join_contacts (contacts[1][0], contacts[1][1]);
+        maybe_join_contacts (contacts[0][1], contacts[1][1]);
+
+        for (int i=0; i<=r.w; i++)
+            for (int j=0; j<=r.h; j++)
+                if (contacts[i][j].is_contact)
+                    cl.push_back(contacts[i][j]);
     }
 }
 
@@ -876,23 +804,19 @@ void World::handle_stone_contact (StoneContact &sc)
     ActorInfo &ai          = *a->get_actorinfo();
     double     restitution = 1.0; //0.85;
 
-    if (server::NoCollisions && (sc.stoneid != st_borderstone))
+    if (server::NoCollisions)
         return;
 
     Contact contact (sc.contact_point, sc.normal);
     
     if (sc.is_contact && sc.response == STONE_REBOUND) {
-        ASSERT(ai.contacts_count < MAX_CONTACTS, XLevelRuntime, 
-                ecl::strf("Enigma Error - insufficient contacts: %d",
-                ai.contacts_count).c_str());
-        ai.contacts[ai.contacts_count++] = contact;
+        ai.new_contacts.push_back (contact);
     }
     
     if (sc.is_collision) {
         if (!sc.ignore && sc.response == STONE_REBOUND) {
             bool slow_collision = length (ai.vel) < 0.3;
-            if (!has_nearby_contact(ai.last_contacts, ai.last_contacts_count, 
-                    contact)) {
+            if (!has_nearby_contact(ai.contacts, contact)) {
                 if (Stone *stone = world::GetStone(sc.stonepos)) {
                     CurrentCollisionActor = a;
                     if (slow_collision) stone->actor_touch(sc);
@@ -933,30 +857,34 @@ namespace {
 };
 
 void World::handle_actor_contacts () {
-    // For each actor, search for possible collisions with other actors.
-    // If there is a good chance for a collision, call handle_actor_contact.
-    Actor *a = leftmost_actor;
-    while (a != NULL) {
-        Actor *candidate = a->right;
-        double actingradius = a->m_actorinfo.radius + Actor::max_radius;
-        double max_x = a->m_actorinfo.pos[0] + actingradius;
-        while (candidate != NULL && candidate->m_actorinfo.pos[0] <= max_x) {
-            double ydist = candidate->m_actorinfo.pos[1] - a->m_actorinfo.pos[1];
-            ydist = (ydist < 0) ? -ydist : ydist;
-            if (ydist <= actingradius) {
-                handle_actor_contact(a, candidate);
-            }
-            candidate = candidate->right;
+    size_t nactors = actorlist.size();
+    vector<ActorEntry> xlist (nactors);
+
+    for (size_t i=0; i<nactors; ++i) {
+        ActorInfo *ai = actorlist[i]->get_actorinfo();
+        xlist[i] = ActorEntry (ai->pos[0], i);
+    }
+    sort (xlist.begin(), xlist.end());
+    for (size_t i=0; i<nactors; ++i) {
+        size_t a1 = xlist[i].idx;
+        ActorInfo &ai1 = *actorlist[a1]->get_actorinfo();
+        double r1 = ai1.radius;
+        double x1 = ai1.pos[0];
+        for (size_t j=i+1; j<nactors; ++j) {
+            size_t a2 = xlist[j].idx;
+            if (xlist[j].pos - x1 < r1 + get_radius(actorlist[a2])) 
+                handle_actor_contact (a1, a2);
+            else
+                break;
         }
-        a = a->right;
     }
 }
 
-void World::handle_actor_contact(Actor *actor1, Actor *actor2)
+void World::handle_actor_contact (size_t i, size_t j)
 {
-    // Calculate if there is a collision between actor1 and actor2.
-
+    Actor *actor1 = actorlist[i];
     ActorInfo &a1 = *actor1->get_actorinfo();
+    Actor *actor2 = actorlist[j];
     ActorInfo &a2 = *actor2->get_actorinfo();
 
     if (a1.ignore_contacts || a2.ignore_contacts)
@@ -965,7 +893,7 @@ void World::handle_actor_contact(Actor *actor1, Actor *actor2)
     V2 n = a1.pos - a2.pos; // normal to contact surface
     double dist = n.normalize();
     double overlap = a1.radius + a2.radius - dist;
-    if (overlap > 0 && !a1.grabbed && !a2.grabbed) {
+    if (overlap > 0 && !a2.grabbed) {
         double relspeed = (a2.vel-a1.vel)*n;
 
         if (relspeed < 0)   // not moving towards each other
@@ -979,29 +907,18 @@ void World::handle_actor_contact(Actor *actor1, Actor *actor2)
 
         if (reboundp) {
             Contact contact (a2.pos + n*a2.radius, -n);
-            ASSERT(a2.contacts_count < MAX_CONTACTS, XLevelRuntime, 
-                    ecl::strf("Enigma Error - insufficient contacts: %d",
-                    a2.contacts_count).c_str());
-            a2.contacts[a2.contacts_count++] = contact;
+            a2.new_contacts.push_back (contact);
             contact.normal = n;
-            ASSERT(a1.contacts_count < MAX_CONTACTS, XLevelRuntime, 
-                    ecl::strf("Enigma Error - insufficient contacts: %d",
-                    a1.contacts_count).c_str());
-            a1.contacts[a1.contacts_count++] = contact;            
+            a1.new_contacts.push_back (contact);
 
             double restitution = 1.0; //0.95;
+            double mu = a1.mass*a2.mass / (a1.mass + a2.mass); // reduced mass
 
-            // Calculate doubled reduced mass:
-            double dmu = a1.mass;
-            if (a1.mass != a2.mass)
-                dmu = 2*a1.mass*a2.mass / (a1.mass + a2.mass);
-
-            V2 force = (restitution * dmu * relspeed / ActorTimeStep) * n;
+            V2 force = (restitution * 2 * mu * relspeed / ActorTimeStep) * n;
             a1.collforce += force;
             a2.collforce -= force;
 
-            if (!has_nearby_contact (a1.last_contacts, a1.last_contacts_count, 
-                    contact)) {
+            if (!has_nearby_contact (a1.contacts, contact)) {
                 double volume = length (force) * ActorTimeStep;
                 volume = std::min(1.0, volume);
                 if (volume > 0.4)
@@ -1013,8 +930,6 @@ void World::handle_actor_contact(Actor *actor1, Actor *actor2)
 
 void World::handle_contacts (unsigned actoridx) 
 {
-    static StoneContact contacts[3];
-
     Actor *actor1 = actorlist[actoridx];
     ActorInfo &a1 = *actor1->get_actorinfo();
 
@@ -1022,13 +937,10 @@ void World::handle_contacts (unsigned actoridx)
         return;
 
     // Handle contacts with stones
-    find_stone_contacts(actor1, contacts[0], contacts[1], contacts[2]);
-    if (contacts[0].is_contact)
-        handle_stone_contact(contacts[0]);
-    if (contacts[1].is_contact)
-        handle_stone_contact(contacts[1]);
-    if (contacts[2].is_contact)
-        handle_stone_contact(contacts[2]);
+    StoneContactList cl;
+    find_stone_contacts(actor1, cl);
+    for (StoneContactList::iterator i=cl.begin(); i != cl.end(); ++i)
+        handle_stone_contact (*i);
 }
 
 /* -------------------- Actor Motion -------------------- */
@@ -1059,12 +971,8 @@ void World::move_actors (double dtime)
 
             ai.forceacc  = V2();
             ai.collforce = V2();
-//            ai.last_pos  = ai.pos;
-            // swap contacts and clear contacts
-            ai.last_contacts = ai.contacts;
-            ai.last_contacts_count = ai.contacts_count;
-            ai.contacts = ai.contacts_a;
-            ai.contacts_count = 0;
+            ai.last_pos  = ai.pos;
+            ai.new_contacts.clear();
         }
         
         handle_actor_contacts();
@@ -1074,6 +982,8 @@ void World::move_actors (double dtime)
         for (unsigned i=0; i<nactors; ++i) {
             Actor     *a  = actorlist[i];
             ActorInfo &ai = * a->get_actorinfo();
+
+            swap (ai.contacts, ai.new_contacts);
 
             if (!a->can_move()) {
                 if (length(ai.force) > 30)
@@ -1105,7 +1015,7 @@ void World::advance_actor (Actor *a, double dtime)
 
     // If the actor is currently in contact with other objects, remove
     // the force components in the direction of these objects.
-    for (unsigned i=0; i<ai.contacts_count; ++i)
+    for (unsigned i=0; i<ai.contacts.size(); ++i)
     {
         const V2 &normal = ai.contacts[i].normal;
         double normal_component = normal * force;
@@ -1117,7 +1027,6 @@ void World::advance_actor (Actor *a, double dtime)
 
     ai.vel += dtime * force / ai.mass;
     ai.pos += dtime * ai.vel;
-    did_move_actor(a);
 
     // Limit maximum velocity
     double q = length(ai.vel) / MAXVEL;
@@ -1125,65 +1034,7 @@ void World::advance_actor (Actor *a, double dtime)
         ai.vel /= q;
 }
 
-void World::did_move_actor(Actor *a) {
-    a->m_actorinfo.gridpos = GridPos(a->m_actorinfo.pos);
-    a->m_actorinfo.field = get_field(a->m_actorinfo.gridpos);
-    
-    double ax = a->m_actorinfo.pos[0];
-    Actor *old_left = a->left;
-    Actor *old_right = a->right;
-    Actor *new_left = old_left;
-    Actor *new_right = old_right;
-    // find new position in actor list
-    while (new_left != NULL && new_left->m_actorinfo.pos[0] > ax) {
-        new_left = new_left->left;
-    };
-    while (new_right != NULL && new_right->m_actorinfo.pos[0] < ax) {
-        new_right = new_right->right;
-    };
-    if (new_left != old_left || new_right != old_right) {
-        // remove from old position
-        if (old_left == NULL) {
-            leftmost_actor = old_right;
-            old_right->left = NULL;
-        } else if (old_right == NULL) {
-            rightmost_actor = old_left;
-            old_left->right = NULL;
-        } else {
-            old_left->right = old_right;
-            old_right->left = old_left;
-        }
-        // insert at new position
-        if (new_left != old_left) {
-            // did move to left side
-            if (new_left == NULL) {
-                a->left = NULL;
-                a->right = leftmost_actor;
-                leftmost_actor->left = a;
-                leftmost_actor = a;
-            } else {
-                a->left = new_left;
-                a->right = new_left->right;
-                new_left->right = a;
-                a->right->left = a;
-            }
-        } else if (new_right != old_right) {
-            // did move to right side
-            if (new_right == NULL) {
-                a->right = NULL;
-                a->left = rightmost_actor;
-                rightmost_actor->right = a;
-                rightmost_actor = a;
-            } else {
-                a->right = new_right;
-                a->left = new_right->left;
-                new_right->left = a;
-                a->left->right = a;
-            }
-        }
-    }
-    
-}
+
 
 void World::handle_delayed_impulses (double dtime)
 {
@@ -1253,9 +1104,9 @@ bool world::InitWorld()
         a->on_creation(a->get_actorinfo()->pos);
         a->message ("init", Value());
 
-        if (Value v = a->getAttr("player")) {
-            int iplayer = v;
-            player::AddActor(iplayer, a);
+        int iplayer;
+        if (a->int_attrib("player", &iplayer)) {
+            player::AddActor(iplayer,a);
             if (iplayer == 0) seen_player0 = true;
         } else {
             player::AddUnassignedActor(a);
@@ -1288,8 +1139,7 @@ void world::SetMouseForce(V2 f)
 void world::NameObject(Object *obj, const std::string &name)
 {
     string old_name;
-    if (Value v = obj->getAttr("name")) {
-        old_name = v.to_string();
+    if (obj->string_attrib("name", &old_name)) {
         obj->warning("name '%s' overwritten by '%s'",
                      old_name.c_str(), name.c_str());
         UnnameObject(obj);
@@ -1304,12 +1154,13 @@ void world::UnnameObject(Object *obj)
 
 void world::TransferObjectName (Object *source, Object *target)
 {
-    if (Value v = source->getAttr("name")) {
-        string name(v);
+    string name;
+    if (source->string_attrib("name", &name)) {
         UnnameObject(source);
-        if (Value v = target->getAttr("name")) {
+        string targetName;
+        if (target->string_attrib("name", &targetName)) {
             target->warning("name '%s' overwritten by '%s'",
-                            v.to_string().c_str(), name.c_str());
+                            targetName.c_str(), name.c_str());
             UnnameObject(target);
         }
         NameObject(target, name);
@@ -1551,9 +1402,10 @@ void world::BroadcastMessage (const std::string& msg,
 void world::PerformAction (Object *o, bool onoff) 
 {
     string action = "idle";
-    string target(o->getAttr("target"));
+    string target;
 
-    if (Value v = o->getAttr("action")) action = v.to_string();
+    o->string_attrib("action", &action);
+    o->string_attrib("target", &target);
 
 #if defined(VERBOSE_MESSAGES)
     o->warning("PerformAction action=%s target=%s", action.c_str(), target.c_str());
@@ -1774,13 +1626,15 @@ void world::AddActor (Actor *a)
     level->add_actor (a);
 }
 
-void  world::DidMoveActor(Actor *a) {
-    level->did_move_actor(a);
-}
-
 Actor * world::YieldActor(Actor *a) 
 {
-    return level->yield_actor(a);
+    ActorList::iterator i=find(level->actorlist.begin(), level->actorlist.end(), a);
+    if (i != level->actorlist.end()) {
+        level->actorlist.erase(i);
+        GrabActor(a);
+        return a;
+    }
+    return 0;
 }
 
 void world::KillActor (Actor *a) {
@@ -1848,7 +1702,12 @@ Actor *world::FindOtherMarble(Actor *thisMarble)
 bool world::ExchangeMarbles(Actor *marble1) {
     Actor *marble2 = FindOtherMarble(marble1);
     if (marble2) {
-        level->exchange_actors(marble1, marble2);
+        ActorInfo *info1 = marble1->get_actorinfo();
+        ActorInfo *info2 = marble2->get_actorinfo();
+
+        swap(info1->pos, info2->pos);
+        swap(info1->oldpos, info2->oldpos);
+
         return true;
     }
     return false;

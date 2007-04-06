@@ -43,7 +43,6 @@ namespace world
     struct ActorTraits {
         const char *name;
         ActorID     id;
-        unsigned    id_mask;
         float       radius;
         float       default_mass;
     };
@@ -55,16 +54,12 @@ namespace world
         ecl::V2 normal;
 
         // Constructor
-        Contact() {
-        }
-        
         Contact (const ecl::V2 &pos_, const ecl::V2 &normal_)
         : pos(pos_), normal (normal_) {} 
     };
-    
-#define MAX_CONTACTS 5
 
-    struct Field;
+    typedef std::vector<Contact> ContactList;
+
     /*!  
      * This class contains the information the physics engine
      * maintains about dynamic objects ("actors").
@@ -73,30 +68,22 @@ namespace world
 	// ---------- Variables ----------
 
         ecl::V2 pos;		// Absolute position
-        GridPos gridpos;    // Grid position for pos
-        const Field *field;  // Field of pos
         ecl::V2 vel;		// Velocity
         ecl::V2 forceacc;        // Force accumulator
-        double charge;		// Electric charge
-        double mass;		// Mass
-        double radius;		// Radius of the ball
+	double charge;		// Electric charge
+	double mass;		// Mass
+	double radius;		// Radius of the ball
         bool   grabbed;		// Actor not controlled by the physics engine
         bool   ignore_contacts; // Do not perform collision handling
 
 	// Variables used internally by the physics engine
 
-//        ecl::V2 last_pos;        // Position before current tick
-//        ecl::V2 oldpos;		// Backup position for enter/leave notification
+        ecl::V2 last_pos;        // Position before current tick
+	ecl::V2 oldpos;		// Backup position for enter/leave notification
         ecl::V2 force;		// Force used during tick
         ecl::V2 collforce;
-        
-        // 2 sets of contacts - one for the current tick, one for the last tick
-        Contact contacts_a[MAX_CONTACTS];
-        Contact contacts_b[MAX_CONTACTS];
-        Contact *contacts;        // pointer to the durrent ticks contacts 
-        Contact *last_contacts;   // pointer to the last ticks contacts
-        int contacts_count;       // number of valid contacts for current tick
-        int last_contacts_count;  // number of valid contacts for last tick
+        ContactList contacts;
+        ContactList new_contacts;
 
         // Constructor
         ActorInfo();
@@ -104,11 +91,7 @@ namespace world
 
 
     class Actor : public Object, public display::ModelCallback {
-        friend class World;
-        friend class ActorsInRangeIterator;
     public:
-        static const double max_radius;
-        
         // ModelCallback interface
         void animcb ();
 
@@ -127,7 +110,7 @@ namespace world
         virtual void on_respawn (const ecl::V2 &pos);
 
         virtual bool is_dead() const = 0;
-        virtual bool is_movable() const { return true; }
+	virtual bool is_movable() const { return true; }
         virtual bool is_flying() const { return false; }
         virtual bool is_on_floor() const { return true; }
         virtual bool is_drunken() const { return false; }
@@ -179,7 +162,7 @@ namespace world
             return (get_controllers() & (1+player)) != 0;
         }
 
-        const GridPos &get_gridpos() const { return m_actorinfo.gridpos; }
+        const GridPos &get_gridpos() const { return gridpos; }
 
     protected:
         Actor(const ActorTraits &tr);
@@ -188,11 +171,9 @@ namespace world
 
         display::SpriteHandle &get_sprite() { return m_sprite; }
 
+    private:
         /* ---------- Variables ---------- */
         ActorInfo             m_actorinfo;
-    private:
-        Actor       *left;   // x-coordinate sorted double linked list
-        Actor       *right;
         display::SpriteHandle m_sprite;
         ecl::V2                startingpos;
         ecl::V2                respawnpos;
@@ -200,7 +181,7 @@ namespace world
         bool                  spikes; // set by "it-pin"
         int                   controllers;
         double                mouseforce;
-        GridPos               last_gridpos;   // last pos handled by actor move
+        GridPos               gridpos;
     };
 
     inline ActorID get_id (Actor *a) {
@@ -218,19 +199,6 @@ namespace world
     inline double get_charge (const Actor *a) { 
         return a->get_actorinfo().charge; 
     }
-    
-    class ActorsInRangeIterator {
-        public:
-            ActorsInRangeIterator(Actor *center, double range, unsigned type_mask);
-            Actor *next();
-        private:
-            Actor *centerActor;
-            double xCenter;
-            Actor *previousActor;
-            Direction dir;
-            double rangeDist;
-            unsigned typeMask;
-    };
 
 /* -------------------- Global Functions -------------------- */
 

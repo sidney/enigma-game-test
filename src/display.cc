@@ -616,23 +616,17 @@ void DisplayEngine::update_layer (DisplayLayer *l, WorldArea wa)
 
     int x2 = wa.x+wa.w;
     int y2 = wa.y+wa.h;
-    int y2m1 = y2 - 1;
 
     clip(gc, get_area());
-    int xpos, ypos0;
-    world_to_screen (V2(wa.x, wa.y), &xpos, &ypos0);
+    int xpos0, ypos;
+    world_to_screen (V2(wa.x, wa.y), &xpos0, &ypos);
 
     l->prepare_draw (wa);
-    for (int x=wa.x; x<x2; x++, xpos += m_tilew) {
-        int ypos = ypos0;
-        for (int y=wa.y; y<y2; y++, ypos += m_tileh) {
+    for (int y=wa.y; y<y2; y++, ypos += m_tileh) {
+        int xpos = xpos0;
+        for (int x=wa.x; x<x2; x++, xpos += m_tilew) {
             if (m_redrawp(x,y) == 1)
-                if (y<y2m1 && m_redrawp(x,y+1) == 1) {
-                    l->draw (gc, WorldArea(x,y,1,2), xpos, ypos);
-                    y++;
-                    ypos += m_tileh;
-                } else
-                    l->draw (gc, WorldArea(x,y,1,1), xpos, ypos);
+                l->draw (gc, WorldArea(x,y,1,1), xpos, ypos);
         }
     }
     l->draw_onepass (gc);
@@ -846,23 +840,13 @@ void SpriteHandle::set_callback (ModelCallback *cb) const {
 }
 
 void SpriteHandle::hide() const {
-    if (layer) {
-        Sprite * s = layer->get_sprite(id);
-        if(s->visible) {
-            s->visible = false;
-            layer->redraw_sprite_region(id);
-        }
-    }
+    layer->get_sprite(id)->visible = false;
+    layer->get_sprite(id)->mayNeedRedraw = false;
 }
 
 void SpriteHandle::show() const {
-    if (layer) {
-        Sprite * s = layer->get_sprite(id);
-        if(!s->visible) {
-            s->visible = true;
-            layer->redraw_sprite_region(id);
-        }
-    }
+    layer->get_sprite(id)->visible = true;
+    layer->get_sprite(id)->mayNeedRedraw = true;
 }
 
 
@@ -884,8 +868,6 @@ void DL_Sprites::new_world (int w, int h) {
     ModelLayer::new_world (w,h);
     delete_sequence (sprites.begin(), sprites.end());
     sprites.clear();
-    Sprite *dummy = NULL;
-    bottomSprites.assign(w, dummy);
     numsprites = 0;
 }
 
@@ -896,14 +878,15 @@ void DL_Sprites::move_sprite (SpriteId id, const ecl::V2& newpos)
     int newx, newy;
     get_engine()->world_to_video (newpos, &newx, &newy);
 
-    if (newx != sprite->screenpos[0] || newy != sprite->screenpos[1]) {
-        update_sprite_region(sprite, false); // make sure old sprite is removed
+    if (newx != sprite->screenpos[0] || newy != sprite->screenpos[1] ||
+            sprite->mayNeedRedraw ) {
+        redraw_sprite_region(id); // make sure old sprite is removed
         sprite->pos = newpos;
         sprite->screenpos[0] = newx;
         sprite->screenpos[1] = newy;
         if (Anim2d* anim = dynamic_cast<Anim2d*>(sprite->model))
             anim->move (newx, newy);
-        update_sprite_region(sprite, true); // draw new sprite
+        redraw_sprite_region(id); // draw new sprite
     }
 }
 
@@ -930,7 +913,7 @@ SpriteId DL_Sprites::add_sprite (Sprite *sprite)
     get_engine()->world_to_video (sprite->pos, &sprite->screenpos[0], &sprite->screenpos[1]);
     if (Model *m = sprite->model)
         m->expose (this, sprite->screenpos[0], sprite->screenpos[1]);
-    update_sprite_region(sprite, true);
+    redraw_sprite_region(id);
     numsprites += 1;
     return id;
 }
@@ -938,20 +921,20 @@ SpriteId DL_Sprites::add_sprite (Sprite *sprite)
 void DL_Sprites::replace_sprite (SpriteId id, Model *m) {
     Sprite *sprite = sprites[id];
     if (Model *old = sprite->model) {
-        update_sprite_region(sprite, false);
+        redraw_sprite_region(id);
         old->remove (this);
         delete old;
     }
     sprite->model = m;
     if (m) {
         m->expose (this, sprite->screenpos[0], sprite->screenpos[1]);
-        update_sprite_region(sprite, true);
+        redraw_sprite_region(id);
     }
 }
 
 void DL_Sprites::kill_sprite (SpriteId id) {
     if (Sprite *sprite = sprites[id]) {
-        update_sprite_region(sprite, false);
+        redraw_sprite_region(id);
         if (Model *m = sprite->model) {
             m->remove (this);
         }
@@ -965,28 +948,22 @@ void DL_Sprites::draw (ecl::GC &gc, const WorldArea &a, int /*x*/, int /*y*/)
 {
     DisplayEngine *engine = get_engine();
     clip (gc, intersect (engine->get_area(), engine->world_to_screen(a)));
-    draw_sprites (false, gc, a);
+    draw_sprites (false, gc);
 }
 
 
-void DL_Sprites::draw_sprites (bool drawshadowp, GC &gc, const WorldArea &a) {
+void DL_Sprites::draw_sprites (bool drawshadowp, GC &gc) {
     SpriteList &sl = sprites;
 
-//    for (unsigned i=0, sl_size=sl.size() ; i<sl_size; ++i) {
-//        Sprite *s = sl[i];
-    int gx = a.x;
-    for (int i = 0; i < a.w; i++, gx++) {
-        int m = gx%3;
-        Sprite *s = bottomSprites[gx];
-        for ( ; s != NULL; s = s->above[m]) {
-            if (s && s->model && s->visible) {
-                int sx, sy;
-                get_engine()->world_to_screen(s->pos, &sx, &sy);
-                if (drawshadowp)
-                    s->model->draw_shadow(gc, sx, sy);
-                else
-                    s->model->draw(gc, sx, sy);
-            }
+    for (unsigned i=0; i<sl.size(); ++i) {
+        Sprite *s = sl[i];
+        if (s && s->model && s->visible) {
+            int sx, sy;
+            get_engine()->world_to_screen(s->pos, &sx, &sy);
+            if (drawshadowp)
+                s->model->draw_shadow(gc, sx, sy);
+            else
+                s->model->draw(gc, sx, sy);
         }
     }
 }
@@ -996,12 +973,9 @@ void DL_Sprites::draw_onepass (ecl::GC &gc)
 //     draw_sprites (false, gc);
 }
 
-void DL_Sprites::redraw_sprite_region (SpriteId id) {
+void DL_Sprites::redraw_sprite_region (SpriteId id) 
+{
     Sprite *s = sprites[id];
-    update_sprite_region(s, true, true);
-}
-
-void DL_Sprites::update_sprite_region (Sprite * s, bool is_add, bool is_redraw_only) {
     if (s && s->model) {
         Rect r, redrawr;
         s->model->get_extension (r);
@@ -1010,35 +984,6 @@ void DL_Sprites::update_sprite_region (Sprite * s, bool is_add, bool is_redraw_o
         DisplayEngine *e = get_engine();
         e->video_to_world (r, redrawr);
         e->mark_redraw_area (redrawr);
-        if (is_redraw_only)
-            return;
-        
-        int x = redrawr.x;
-        for (int i = 0; i < redrawr.w; i++, x++) {
-            if (x >= 0 && x < e->get_width()) {
-                int m = x%3;
-                if (is_add) {
-                    if (bottomSprites[x] != NULL)
-                        bottomSprites[x]->beneath[m] = s;
-                    s->above[m] = bottomSprites[x];
-                    s->beneath[m] = NULL;
-                    bottomSprites[x] = s;
-                } else {  // remove
-                    if (bottomSprites[x] == s) {
-                        bottomSprites[x] = s->above[m];
-                        if (s->above[m] != NULL)
-                            s->above[m]->beneath[m] = NULL;
-                    } else {
-                        if (s->above[m] != NULL) {
-                            s->above[m]->beneath[m] = s->beneath[m];
-                        }
-                        if (s->beneath[m] != NULL) {
-                            s->beneath[m]->above[m] = s->above[m];
-                        }
-                    }
-                }           
-            }
-        }
     }
 }
 
@@ -1567,20 +1512,14 @@ void DL_Shadows::draw(GC &gc, int xpos, int ypos, int x, int y) {
                 set_color (gc2, 255, 255, 255);
                 box (gc2, buffer->size());
             }
-            
-//            for (unsigned i=0; i<m_sprites->sprites.size(); ++i) {
-//                if (Sprite *sp = m_sprites->sprites[i]) {
-//                    
-            int m = x%3;
-            Sprite *sp = m_sprites->bottomSprites[x];
-            for ( ; sp != NULL; sp = sp->above[m]) {
-                            
+            for (unsigned i=0; i<m_sprites->sprites.size(); ++i) {
+                if (Sprite *sp = m_sprites->sprites[i]) {
                     if (sp->visible && sp->model) {
                         int sx = round_nearest<int>(sp->pos[0]*tilew) - x*tilew;
                         int sy = round_nearest<int>(sp->pos[1]*tileh) - y*tileh;
                         sp->model->draw_shadow(gc2, sx, sy);
                     }
-//                }
+                }
             }
             blit(gc, xpos, ypos, buffer);
         }
@@ -2080,9 +2019,7 @@ void GameDisplay::resize_game_area (int w, int h)
 
 /* -------------------- Global functions -------------------- */
 
-void display::Init(bool show_fps) {
-    if (show_fps)        // keep ShowFPS on false for screen resolution changes
-        ShowFPS = true;  
+void display::Init() {
     InitModels();
 
     const video::VMInfo *vminfo = video::GetInfo();

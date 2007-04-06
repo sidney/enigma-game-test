@@ -30,15 +30,13 @@ using namespace std;
 using namespace enigma;
 using namespace world;
 
-Floor::Floor(const char *kind, double friction_, double mfactor, FloorFlags flags,
-             FloorFireType flft, const char *firetransform_, const char *heattransform_)
+Floor::Floor(const char *kind, double friction_, double mfactor,
+             FloorFlags flags, FloorFireType flft,
+             const char *firetransform_, const char *heattransform_)
 : GridObject (kind),
   traits (kind, friction_, mfactor, flags, flft, firetransform_, heattransform_),
   heating_animation(false),
-  fire_countdown(1),
-  var_floorforce(),
-  var_mousefactor(mfactor),
-  var_friction(friction_)
+  fire_countdown(1)
 {}
 
 Floor::Floor (const FloorTraits &tr)
@@ -80,36 +78,27 @@ Value Floor::message(const string &msg, const Value &val) {
 
 ecl::V2 Floor::process_mouseforce (Actor *a, ecl::V2 force) {
     if (a->controlled_by(player::CurrentPlayer()))
-        return get_mousefactor() * force;
+        return mousefactor() * force;
     else
         return ecl::V2();
-}
-
-void Floor::set_attrib (const string& key, const Value &val)
-{
-    if (key == "mousefactor")
-        var_mousefactor = to_double(val);
-    else if (key == "friction")
-        var_friction = to_double(val);
-    else if (key == "force_x")
-        var_floorforce[0] = to_double(val);
-    else if (key == "force_y")
-        var_floorforce[1] = to_double(val);
-    Object::set_attrib (key, val);
 }
 
 void Floor::get_sink_speed (double &sinkspeed, double &raisespeed) const {
 //     sinkspeed = raisespeed = 0.0;
 }
 
-double Floor::get_friction() const 
+double Floor::friction() const 
 { 
-    return var_friction; 
+    if (const Value *v = this->get_attrib("friction")) 
+        return to_double(*v);
+    return traits.friction; 
 }
 
-double Floor::get_mousefactor() const 
+double Floor::mousefactor() const 
 { 
-    return var_mousefactor; 
+    if (const Value *v = this->get_attrib("mousefactor")) 
+        return to_double(*v);
+    return traits.mousefactor; 
 }
 
 bool Floor::is_destructible() const 
@@ -135,7 +124,12 @@ void Floor::kill_model (GridPos p)
 void Floor::add_force (Actor *, V2 &f)
 {
     // Note that actor == 0 is possible from lightpassenger-calculation.
-    f += var_floorforce;
+    if(const Value *x = this->get_attrib("force_x")) {
+        f[0] += to_double(*x);
+    }
+    if(const Value *y = this->get_attrib("force_y")) {
+        f[1] += to_double(*y);
+    }
 }
 
 /* -------------- Fire Handling -------------- */
@@ -418,26 +412,24 @@ bool Floor::has_firetype(FloorFireType selector) {
                 return (selector == flft_burnable) && !has_flags(it, itf_fireproof);
         }
     }
-    bool dflt = (server::GameCompatibility == GAMET_ENIGMA) 
-            && (traits.firetype & selector);
+    if(selector == flft_burnable)
+        if(const Value *v = get_attrib("burnable"))  return to_int(*v) == 1;
+    if(selector == flft_ignitable)
+        if(const Value *v = get_attrib("ignitable")) return to_int(*v) == 1;
+    if(selector == flft_secure)
+        if(const Value *v = get_attrib("secure"))    return to_int(*v) == 1;
+    if(selector == flft_eternal)
+        if(const Value *v = get_attrib("eternal"))   return to_int(*v) == 1;
+    if(selector == flft_noash)
+        if(const Value *v = get_attrib("noash"))     return to_int(*v) == 1;
+    if(selector == flft_fastfire)
+        if(const Value *v = get_attrib("fastfire"))  return to_int(*v) == 1;
+    if(selector == flft_initfire)
+        if(const Value *v = get_attrib("initfire"))  return to_int(*v) == 1;
+    if(server::GameCompatibility == GAMET_ENIGMA)
+        return traits.firetype & selector;
     // In non-Enigma-modes, without items on them, all floors behave the same:
-    switch (selector) {
-        case flft_burnable :
-            return getAttr("burnable", dflt).to_bool();
-        case flft_ignitable :
-            return getAttr("ignitable", dflt).to_bool();
-        case flft_secure :
-            return getAttr("secure", dflt).to_bool();
-        case flft_eternal :
-            return getAttr("eternal", dflt).to_bool();
-        case flft_noash :
-            return getAttr("noash", dflt).to_bool();
-        case flft_fastfire :
-            return getAttr("fastfire", dflt).to_bool();
-        case flft_initfire :
-            return getAttr("initfire", dflt).to_bool();
-    }
-    return dflt;
+    return false;
 }
 
 void Floor::animcb() {
@@ -474,7 +466,7 @@ namespace
         Ice() : Floor ("fl-ice", 0.1, 0.1, flf_default, flft_default, "",
             "fl-water") { }
 
-        virtual double get_friction() const {
+        virtual double friction() const {
             return 0.1 * server::IceFriction;
         }
     };
@@ -502,8 +494,8 @@ namespace
     class Swamp : public Floor {
         CLONEOBJ(Swamp);
     public:
-        Swamp() : Floor("fl-swamp", 13, 1.0, flf_indestructible, flft_default,
-            "", "fl-dunes") {}
+        Swamp() : Floor("fl-swamp", 13, 1.0, flf_indestructible, flft_default, "",
+            "fl-dunes") {}
     private:
         bool is_destructible() const {return false;}
         
@@ -556,7 +548,7 @@ namespace
     private:
         void actor_enter(Actor *) {
             static int lastCode = -1;
-            int        code     = getAttr("code");
+            int        code     = int_attrib("code");
             if (lastCode != code) {
                 fprintf(stderr, "Entering floor 0x%x\n", code);
                 lastCode = code;
@@ -627,7 +619,7 @@ void Gradient::set_attrib (const string& key, const Value &val)
         use_forcefac = true;
         forcefac = to_double (val);
     }
-    Floor::set_attrib (key, val);
+    Object::set_attrib (key, val);
 }
 
 
@@ -710,7 +702,7 @@ namespace
 
         char get_type() const {
             string type = "a";
-            if (Value v = getAttr("type")) type = v.get_string();
+            string_attrib("type", &type);
             return type[0];
         }
 
@@ -885,7 +877,7 @@ void Thief::actor_enter(Actor *a) {
         state = EMERGING;
         m_affected_actor = a;
         affected_player = -1;
-        if (Value v = m_affected_actor->getAttr("player")) affected_player = v;
+        m_affected_actor->int_attrib("player", &affected_player);
     }
 }
 
@@ -969,7 +961,7 @@ namespace
 
         ecl::V2 process_mouseforce (Actor *, ecl::V2 force) {
             if (player::CurrentPlayer() == 0)
-                return get_mousefactor() * force;
+                return mousefactor() * force;
             else
                 return ecl::V2();
         }
@@ -982,7 +974,7 @@ namespace
 
         ecl::V2 process_mouseforce (Actor *, ecl::V2 force) {
             if (player::CurrentPlayer() == 1)
-                return get_mousefactor() * force;
+                return mousefactor() * force;
             else
                 return ecl::V2();
         }

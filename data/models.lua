@@ -15,6 +15,7 @@
 -- with this program; if not, write to the Free Software Foundation, Inc.,
 -- 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
 --
+-- $Id: models.lua,v 1.11 2004/05/27 20:30:44 dheck Exp $
 ------------------------------------------------------------------------
 
 -- This file contains common routines for defining new Enigma models.
@@ -105,7 +106,7 @@ function def_subimages(name, options)
             r.y = r.y + padding
             r.w = r.w - 2*padding
             r.h = r.h - 2*padding
-            table.insert(imagelist, modelname..cnt)
+            tinsert(imagelist, modelname..cnt)
             err = display.DefineSubImage(modelname..cnt, name, xoff+padding,yoff+padding, r)
             if err ~= 0 then
                 error ("Could not define "..modelname..cnt..": error loading "..name)
@@ -230,7 +231,7 @@ end
 function framenames(prefix, first, last)
     local fn = {}
     for i=first,last do
-	table.insert(fn, prefix .. format("_%04d", i))
+	tinsert(fn, prefix .. format("_%04d", i))
     end
     return fn
 end
@@ -271,7 +272,7 @@ function repeat_frames(framelist, blocksize, cnt)
     for i=1,getn(framelist),blocksize do
 	for j=1,cnt do
 	    for k=i,i+blocksize-1 do
-		table.insert(a,framelist[k])
+		tinsert(a,framelist[k])
 	    end
 	end
     end
@@ -285,7 +286,7 @@ end
 function reverseframes(framelist)
     local a={}
     for i=getn(framelist),1,-1 do
-	table.insert(a, framelist[i])
+	tinsert(a, framelist[i])
     end
     return a
 end
@@ -296,7 +297,7 @@ end
 
 function def_anim_images(name, frames, opt)
     opt = opt or {}
-    local loopbool = opt.loop and true or false
+    local loopbool = opt.loop and (opt.loop == 1 or opt.loop == true) or false
     display.DefineAnim(name, loopbool)
     for i=1,getn(frames) do
 	local frame=frames[i]
@@ -310,7 +311,7 @@ end
 -- Define an animation from a list of models.
 
 function def_anim(name, frames, loop)
-    local loopbool = loop and true or false
+    local loopbool = loop and (loop == 1 or loop == true) or false
     display.DefineAnim(name,loopbool)
     for i=1,getn(frames) do
 	local frame = frames[i]

@@ -241,7 +241,8 @@ void CoinSlot::actor_hit(const StoneContact &sc)
                 sound_event ("coinsloton");
                 set_anim("st-coin2slot");
 
-                double coin_value = it->getAttr("value");
+                double coin_value = 0;
+                it->double_attrib("value", &coin_value);
                 remaining_time += coin_value;
 
                 inv->yield_first();
@@ -313,9 +314,11 @@ namespace
 bool KeyStone::check_matching_key (enigma::Inventory *inv)
 {
     Item *it = inv->get_item(0);
+    int keycode, my_keycode = int_attrib ("keycode");
     return (it
             && it->is_kind("it-key*")
-            && it->getAttr("keycode") == getAttr("keycode"));
+            && it->int_attrib("keycode", &keycode)
+            && my_keycode == keycode);
 }
 
 void KeyStone::actor_hit(const StoneContact &sc)
@@ -330,7 +333,7 @@ void KeyStone::actor_hit(const StoneContact &sc)
         if (is_on()) {
             if (!inv->is_full()) {
                 Item *key = MakeItem("it-key");
-                key->set_attrib ("keycode", getAttr("keycode"));
+                key->set_attrib ("keycode", int_attrib ("keycode"));
                 inv->add_item(key);
                 toggle = true;
             }
@@ -443,7 +446,7 @@ namespace
         virtual const char *get_inactive_model() const = 0;
         virtual double timer_delay() const;
 
-        bool inverse() { return getAttr("inverse") == 1; }
+        bool inverse() { return int_attrib("inverse") == 1; }
 
         // Stone interface
         void on_creation (GridPos p);
@@ -596,10 +599,10 @@ const char *LaserTimeSwitch::get_inactive_model() const {
 }
 
 double LaserTimeSwitch::timer_delay() const {
-    if (Value v = getAttr("delay"))
-        return v;
-    else
+    double delay;
+    if (!double_attrib("delay", &delay))
         ASSERT(0, XLevelRuntime, "LaserTimeSwitch: delay not properly defined");
+    return delay;
 }
 
 void LaserTimeSwitch::actor_hit(const StoneContact &sc) {

@@ -423,10 +423,6 @@ void ImageModel::get_extension (ecl::Rect &r) {
 
 ShadowModel::ShadowModel (Model *m, Model *sh) {
     model=m; shade=sh;
-    ecl::Rect r1, r2;
-    model->get_extension (r1);
-    shade->get_extension (r2);
-    extension = boundingbox (r1, r2);
 }
 
 ShadowModel::~ShadowModel() { 
@@ -473,7 +469,10 @@ Model *ShadowModel::clone() {
 }
 
 void ShadowModel::get_extension (ecl::Rect &r) {
-    r = extension;
+    ecl::Rect r1, r2;
+    model->get_extension (r1);
+    shade->get_extension (r2);
+    r = boundingbox (r1, r2);
 }
 
 /* -------------------- RandomModel -------------------- */
@@ -500,13 +499,13 @@ Anim2d::Anim2d(bool loop)
 : rep(new AnimRep(loop)) 
 {}
 
-Anim2d::Anim2d (AnimRep *r, ecl::Rect &ext_r) 
+Anim2d::Anim2d (AnimRep *r) 
 : rep(r), curframe(0), frametime(0), 
   finishedp (false), 
   changedp (false), 
   reversep (false),
   videox (0), videoy (0),
-  callback(0), extension(ext_r)
+  callback(0)
 {
     rep->refcount++;
     frametime = 0; // enigma::DoubleRand (0, 0.02);
@@ -523,12 +522,6 @@ void Anim2d::restart () {
 
 void Anim2d::add_frame(Model *m, double duration) {
     rep->frames.push_back(new AnimFrame(m, duration));
-    
-    // cache the bounding extension of all frames to ensure that it is constant
-    ecl::Rect r1, r2;
-    m->get_extension (r1);
-    r2 = extension;
-    extension = boundingbox (r1, r2);
 }
 
 void Anim2d::draw(ecl::GC &gc, int x, int y) 
@@ -574,7 +567,8 @@ void Anim2d::move (int newx, int newy) {
 }
 
 void Anim2d::get_extension (ecl::Rect &r) {
-    r = extension;
+    AnimFrame *f =rep->frames[curframe];
+    f->model->get_extension (r);
 }
 
 void Anim2d::tick (double dtime) 
