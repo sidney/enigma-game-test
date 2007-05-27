@@ -23,18 +23,13 @@
 
 namespace oxyd
 {
-    void Init();
+    void Init(bool searchDAT);
     void Shutdown();
 
     bool FoundOxyd (OxydLib::OxydVersion ver);
 
-    /**
-     * Select soundset or set default soundset.
-     * @arg new_sound_set  Enigma = 1, OxydVersion number +2, or 0 for "use default"
-     * @arg isDefault      true if a levelpack declares it default soundset,
-     *                     false if the user selected soundset is given 
-     */
-    void ChangeSoundset(int new_sound_set, bool isDefault);
+    // Initialise an oxyd sound set
+    bool InitOxydSoundSet(OxydLib::OxydVersion ver);
 }
 
 #endif

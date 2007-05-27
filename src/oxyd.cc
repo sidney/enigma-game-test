@@ -93,21 +93,21 @@ namespace
         for (unsigned y=0; y<sgrid.getHeight(); ++y)
             for (unsigned x=0; x<sgrid.getWidth(); ++x)
                 if (Stone *st = world::GetStone(GridPos(x, y)))
-                    if (int code = st->getAttr("code"))
+                    if (int code = st->int_attrib("code"))
                         stones.insert(code);
 
         const Grid &igrid = level.getGrid (GridType_Objects);
         for (unsigned y=0; y<igrid.getHeight(); ++y)
             for (unsigned x=0; x<igrid.getWidth(); ++x)
                 if (Item *it = world::GetItem(GridPos(x, y)))
-                    if (int code = it->getAttr("code"))
+                    if (int code = it->int_attrib("code"))
                         items.insert(code);
 
         const Grid &fgrid = level.getGrid (GridType_Objects);
         for (unsigned y=0; y<fgrid.getHeight(); ++y)
             for (unsigned x=0; x<fgrid.getWidth(); ++x)
                 if (world::Floor *fl = world::GetFloor(GridPos(x, y)))
-                    if (int code = fl->getAttr("code"))
+                    if (int code = fl->int_attrib("code"))
                         floors.insert(code);
 
         if (!stones.empty()) {
@@ -760,10 +760,9 @@ LevelPack_Oxyd::LevelPack_Oxyd (OxydVersion ver, DatFile *dat,
     Log << "Levelpack '" << get_name() << "' has " << nlevels << " levels." << endl;
 }
 
-
-int LevelPack_Oxyd::get_default_SoundSet() const 
+const char* LevelPack_Oxyd::get_default_SoundSet() const 
 { 
-    return m_datfile->getVersion() + 2; 
+    return sound::GetOxydSoundSet(m_datfile->getVersion()).c_str();
 }
 
 bool LevelPack_Oxyd::needs_twoplayers() const 
@@ -945,12 +944,12 @@ GameInfo::~GameInfo() {
 }
 
 
-GameInfo::GameInfo (OxydVersion ver_, const string &game_, const string &datfile_name_)
+GameInfo::GameInfo (OxydVersion ver_, const string &game_, const string &datfile_name_, const bool searchDAT)
 : ver(ver_), game(game_), datfile(0), /*datfile_name(datfile_name_), */m_present(false)
 {
     string alt_datfile_name = "levels/legacy_dat/" + datfile_name_;
     string fname;
-    if (app.resourceFS->findFile (datfile_name_, datfile_path) ||
+    if (searchDAT && app.resourceFS->findFile (datfile_name_, datfile_path) ||
             app.resourceFS->findFile (alt_datfile_name, datfile_path)) {
         enigma::Log << "Found " << game << " data file\n";
         m_present = true;
@@ -1017,32 +1016,27 @@ lev::Index *GameInfo::makeLevelIndex(bool twoplayers)
 namespace
 {
     vector<GameInfo*> games;
-
-    int active_soundset              = 1; // 1: enigma  2..: OxydVersion+2;
-
-    typedef std::map <std::string, std::string> SoundMap;
-    SoundMap soundfx_map;
 }
 
 
 
 /* -------------------- Functions -------------------- */
 
-void oxyd::Init() 
+void oxyd::Init(bool searchDAT) 
 {
     games.clear();
     games.resize(OxydVersion_Count);
 
     games[OxydVersion_Oxyd1] 
-        = new GameInfo (OxydVersion_Oxyd1,          "Oxyd 1",           "oxyd1ibm.dat");
+        = new GameInfo (OxydVersion_Oxyd1,          "Oxyd 1",           "oxyd1ibm.dat", searchDAT);
     games[OxydVersion_OxydMagnum]     
-        = new GameInfo (OxydVersion_OxydMagnum,     "Oxyd magnum",      "oxydmibm.dat");
+        = new GameInfo (OxydVersion_OxydMagnum,     "Oxyd magnum",      "oxydmibm.dat", searchDAT);
     games[OxydVersion_OxydMagnumGold] 
-        = new GameInfo(OxydVersion_OxydMagnumGold, "Oxyd magnum gold", "oxydmgg.dat");
+        = new GameInfo(OxydVersion_OxydMagnumGold, "Oxyd magnum gold", "oxydmgg.dat", searchDAT);
     games[OxydVersion_OxydExtra]      
-        = new GameInfo(OxydVersion_OxydExtra,      "Oxyd extra",       "oxydex.dat");
+        = new GameInfo(OxydVersion_OxydExtra,      "Oxyd extra",       "oxydex.dat", searchDAT);
     games[OxydVersion_PerOxyd]        
-        = new GameInfo(OxydVersion_PerOxyd,        "Per.Oxyd",         "peroxyd.dat");
+        = new GameInfo(OxydVersion_PerOxyd,        "Per.Oxyd",         "peroxyd.dat", searchDAT);
 }
 
 void oxyd::Shutdown()
@@ -1054,60 +1048,12 @@ bool oxyd::FoundOxyd (OxydVersion ver) {
     return games[ver]->is_present();
 }
 
-
-void oxyd::ChangeSoundset(int new_sound_set, bool isDefault) 
+bool oxyd::InitOxydSoundSet(OxydVersion ver)
 {
-    static int last_default_sound_set = 1; // default is Enigma
-    static int last_user_sound_set = 0;    // user selection of default 
-    int sound_set = last_user_sound_set;
-    
-    if (isDefault) {
-        // new levelpack sets a default soundset
-        ASSERT(new_sound_set > 0, XFrontend, "Default Soundset 0");
-        
-        // remember current default
-        last_default_sound_set = new_sound_set;
-        
-        // select it if default is users selection
-        if (last_user_sound_set == 0)
-            sound_set = new_sound_set;
-    } else {
-        // user selects a soundset 
-        last_user_sound_set = new_sound_set;
-        if (new_sound_set == 0) 
-            sound_set = last_default_sound_set;
-        else
-            sound_set = new_sound_set;
-    }
-
-    if (sound_set == active_soundset) {
-        return;
-    }
-
-    // reset to enigma soundset
-    soundfx_map.clear();
-    active_soundset = 1;
-
-    sound::ClearCache();
-
-    if (sound_set == 1) {       // enigma -> no mapping
-        lua::SetSoundTable ("Enigma");
-        return;
-    }
-
-    OxydVersion ver = OxydVersion(sound_set-2);
     GameInfo&   gi  = *(games[ver]);
 
     if (!gi.is_present())
-        return;                 // not installed -> use enigma soundset
-
-    if (ver == OxydVersion_OxydMagnum || ver == OxydVersion_OxydMagnumGold) {
-        lua::SetSoundTable ("Oxydm");
-    }
-    else {
-        lua::SetSoundTable ("Oxyd");
-    }
-    active_soundset = sound_set;
+        return false;                 // not installed -> use enigma soundset
 
     static const char *oxydsounds[] = {
         "OXBLOOP.SDD", "OXBOING.SDD", "OXBOLD.SDD", "OXCRACK.SDD",
@@ -1129,7 +1075,7 @@ void oxyd::ChangeSoundset(int new_sound_set, bool isDefault)
         const OxydLib::ByteVec *snddata = datfile->getChunk(chunkname);
 
         if (snddata) {
-            enigma::Log << "Loaded sound file " << chunkname<< "\n";
+            //enigma::Log << "Loaded sound file " << chunkname<< "\n";
 
             sound::SoundData snd;
             snd.buf.assign (snddata->begin(), snddata->end() - 4);
@@ -1141,4 +1087,6 @@ void oxyd::ChangeSoundset(int new_sound_set, bool isDefault)
             sound::DefineSound (oxydsounds[i], snd);
         }
     }
+
+    return true;
 }

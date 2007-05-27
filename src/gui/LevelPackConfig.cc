@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006 Ronald Lamprecht
+ * Copyright (C) 2006, 2007 Ronald Lamprecht
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -224,19 +224,19 @@ namespace enigma { namespace gui {
         if (!isReasignOnly) {
             metaVList->add_back(but_metadata);
             metaVList->add_back(new Label());
-#ifdef ENABLE_EXPERIMENTAL
-            metaVList->add_back(releaseLabel);
-            metaVList->add_back(revisionLabel);
-#else
-            metaVList->add_back(new Label());
-            metaVList->add_back(new Label());
-#endif
+	    if (WizardMode) {
+		metaVList->add_back(releaseLabel);
+		metaVList->add_back(revisionLabel);
+	    } else {
+		metaVList->add_back(new Label());
+		metaVList->add_back(new Label());
+	    }
             metaVList->add_back(crossmodeLabel);
-#ifdef ENABLE_EXPERIMENTAL
-            metaVList->add_back(compatibilityLabel);
-#else
-            metaVList->add_back(new Label());
-#endif
+	    if (WizardMode) {
+		metaVList->add_back(compatibilityLabel);
+	    } else {
+		metaVList->add_back(new Label());
+	    }
             metaVList->add_back(defLocationLabel);
             metaVList->add_back(new Label());
         }
@@ -261,19 +261,19 @@ namespace enigma { namespace gui {
         if (!isReasignOnly) {
             valueMetaVList->add_back(new Label());
             valueMetaVList->add_back(new Label());
-#ifdef ENABLE_EXPERIMENTAL
+	    if (WizardMode) {
             valueMetaVList->add_back(releaseValueLabel);
             valueMetaVList->add_back(revisionValueLabel);
-#else
+	    } else {
             valueMetaVList->add_back(new Label());
             valueMetaVList->add_back(new Label());
-#endif
+	    }
             valueMetaVList->add_back(levelmodeWidget);
-#ifdef ENABLE_EXPERIMENTAL
+	    if (WizardMode) {
             valueMetaVList->add_back(compatibilityValueLabel);
-#else
+	    } else {
             valueMetaVList->add_back(new Label());
-#endif
+	    }
             valueMetaVList->add_back(defLocationValueLabel);
             valueMetaVList->add_back(new Label());
         }
@@ -298,12 +298,11 @@ namespace enigma { namespace gui {
        
         // Create buttons - positioning identical to Levelmenu
         but_edit = new StaticTextButton(N_("Compose Pack"), this);
-//        but_update = new StaticTextButton(N_("Update Pack"), this);
-#if 0
-        // fake gettext to register the following strings for I18N
-        _("Update Pack")
-#endif
-        but_update = new Label();
+        if (isPersistent && persIndex->isUpdatable() && persIndex->isCross()) {
+            but_update = new StaticTextButton(N_("Update Pack"), this);
+        } else {
+            but_update = new Label();
+        }
         but_ignore = new StaticTextButton(N_("Undo"), this);
         but_back = new StaticTextButton(N_("Ok"), this);
         
@@ -348,17 +347,17 @@ namespace enigma { namespace gui {
             defLocationTF = new TextField(defLocationValueLabel->getText()); 
             valueMetaVList->exchange_child(defLocationValueLabel, defLocationTF);
             delete defLocationValueLabel;
-#ifdef ENABLE_EXPERIMENTAL
-            releaseTF = new TextField(releaseValueLabel->getText()); 
-            valueMetaVList->exchange_child(releaseValueLabel, releaseTF);
-            delete releaseValueLabel;
-            revisionTF = new TextField(revisionValueLabel->getText()); 
-            valueMetaVList->exchange_child(revisionValueLabel, revisionTF);
-            delete revisionValueLabel;
-            compatibilityTF = new TextField(compatibilityValueLabel->getText()); 
-            valueMetaVList->exchange_child(compatibilityValueLabel, compatibilityTF);
-            delete compatibilityValueLabel;
-#endif
+	    if (WizardMode) {
+		releaseTF = new TextField(releaseValueLabel->getText()); 
+		valueMetaVList->exchange_child(releaseValueLabel, releaseTF);
+		delete releaseValueLabel;
+		revisionTF = new TextField(revisionValueLabel->getText()); 
+		valueMetaVList->exchange_child(revisionValueLabel, revisionTF);
+		delete revisionValueLabel;
+		compatibilityTF = new TextField(compatibilityValueLabel->getText()); 
+		valueMetaVList->exchange_child(compatibilityValueLabel, compatibilityTF);
+		delete compatibilityValueLabel;
+	    }
         }
     }
     
@@ -388,8 +387,9 @@ namespace enigma { namespace gui {
             if (newtitle != persIndex->getName()) {
                 if (isNewIndex) {
                     // check for filename usability of title
-                    const std::string validChars("_- #0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
-                    if (newtitle.find_first_not_of(validChars, 0) != std::string::npos) {
+                    const std::string validChars("_- .#0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+                    if (newtitle.find_first_not_of(validChars, 0) != std::string::npos ||
+			    (newtitle.length() >= 1 && newtitle[0] == '.')) {
                         errorLabel->set_text(N_("Error: use only \"a-zA-Z0-9 _-#\" for levelpack title"));
                         return false;               
                     }
@@ -420,35 +420,35 @@ namespace enigma { namespace gui {
                 }
             }
             
-#ifdef ENABLE_EXPERIMENTAL
-            if (releaseTF->getText() != ecl::strf("%d", persIndex->getRelease())) {
-                int i = 0;
-                // check value - keep old value on error 
-                if ((sscanf(releaseTF->getText().c_str(),"%d", &i) == 1) &&
-                        i > 0) {
-                    persIndex->setRelease(i);
-                    needSave = true;
+            if (WizardMode) {
+                if (releaseTF->getText() != ecl::strf("%d", persIndex->getRelease())) {
+                    int i = 0;
+                    // check value - keep old value on error 
+                    if ((sscanf(releaseTF->getText().c_str(),"%d", &i) == 1) &&
+                	    i > 0) {
+                	persIndex->setRelease(i);
+                	needSave = true;
+                    }
+                }
+                if (revisionTF->getText() != ecl::strf("%d", persIndex->getRevision())) {
+                    int i = 0;
+                    // check value - keep old value on error 
+                    if ((sscanf(revisionTF->getText().c_str(),"%d", &i) == 1) &&
+                	    i > 0) {
+                	persIndex->setRevision(i);
+                	needSave = true;
+                    }
+                }
+                if (compatibilityTF->getText() != ecl::strf("%.2f", persIndex->getCompatibility())) {
+                    double d = 0;
+                    // check value - keep old value on error 
+                    if ((sscanf(compatibilityTF->getText().c_str(),"%lg", &d) == 1) &&
+                	    d >= 1) {
+                	persIndex->setCompatibility(d);
+                	needSave = true;
+                    }
                 }
             }
-            if (revisionTF->getText() != ecl::strf("%d", persIndex->getRevision())) {
-                int i = 0;
-                // check value - keep old value on error 
-                if ((sscanf(revisionTF->getText().c_str(),"%d", &i) == 1) &&
-                        i > 0) {
-                    persIndex->setRevision(i);
-                    needSave = true;
-                }
-            }
-            if (compatibilityTF->getText() != ecl::strf("%.2f", persIndex->getCompatibility())) {
-                double d = 0;
-                // check value - keep old value on error 
-                if ((sscanf(compatibilityTF->getText().c_str(),"%lg", &d) == 1) &&
-                        d >= 1) {
-                    persIndex->setCompatibility(d);
-                    needSave = true;
-                }
-            }
-#endif
             
             // save
             if (needSave)
@@ -491,7 +491,11 @@ namespace enigma { namespace gui {
             undo_quit = true;
             Menu::quit();
         } else if (w == but_update) {
-            errorLabel->set_text(("Sorry - update not yet implemented."));
+            if (isPersistent && doChanges()) {
+                persIndex->load(false, true);
+                persIndex->save(true);
+                Menu::quit();
+            }
             invalidate_all();
         } else if (w == but_edit) {
             if (doChanges()) {

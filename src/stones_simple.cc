@@ -85,7 +85,8 @@ namespace
         {}
     private:
         SimpleStone(const SimpleStone& other)
-        : Stone(other.get_kind()), traits(other.traits)
+        : Stone(other.get_kind()), traits(other.traits),
+          sunglasses(false)
         {}
 
         Stone *clone() { return new SimpleStone(*this); }
@@ -94,16 +95,26 @@ namespace
         const char *collision_sound() {
             return traits->sound.c_str();
         }
+
+        /** Different kinds of glassstones:
+         *  Stone:                 visible:     invisible:   lasertransparent:
+         *  st-glass               -            pass         Y
+         *  st-glass1              -            pass         Y
+         *  st-glass1_hole         pass         pass         Y
+         *  st-glass2              -            pass         N
+         *  st-glass2_hole         pass         pass         Y
+         *  st-glass3              -            -            Y
+         */
         StoneResponse collision_response(const StoneContact &sc) {
             if (traits->hollow)
                 return STONE_PASS;
-            if (traits->glass && sc.actor->is_invisible())
+            if (sc.actor->is_invisible() && ((traits->glass && !is_kind("st-glass3")) || is_kind("st-beads")) )
                 return STONE_PASS;
-            return STONE_REBOUND;
+            return Stone::collision_response(sc);
         }
 
         bool is_sticky (const Actor *actor) const {
-            if (traits->glass)
+            if (traits->glass || is_kind("st-beads"))
                 return !actor->is_invisible();
             return Stone::is_sticky(actor);
         }
@@ -111,8 +122,11 @@ namespace
         bool is_floating() const {
             return traits->hollow;
         }
-        bool is_transparent (Direction) const {
-            return traits->hollow || traits->glass;
+
+        bool is_transparent (Direction dir) const {
+            if (traits->hollow || (traits->glass && !is_kind("st-glass2")) )
+                return true;
+            return Stone::is_transparent(dir);
         }
 
         virtual Value on_message (const Message &m)
@@ -163,8 +177,29 @@ namespace
         const char *collision_sound() {
             return traits->sound.c_str();
         }
-        bool is_transparent (Direction) const {
-            return traits->glass;
+
+        /** Different kinds of movable glassstones:
+         *  Stone:                 visible:     invisible:   lasertransparent:
+         *  st-glass_move          push         pass         Y
+         *  st-glass1_move         push         push         Y
+         *  st-glass2_move         push         push         N
+         */
+        StoneResponse collision_response(const StoneContact &sc) {
+            if (traits->glass && sc.actor->is_invisible() && is_kind("st-glass_move"))
+                return STONE_PASS;
+            return Stone::collision_response(sc);
+        }
+
+        bool is_sticky (const Actor *actor) const {
+            if (traits->glass)
+                return !actor->is_invisible();
+            return Stone::is_sticky(actor);
+        }
+
+        bool is_transparent (Direction dir) const {
+            if (traits->glass && !is_kind("st-glass2_move"))
+                return true;
+            return Stone::is_transparent(dir);
         }
 
         bool is_movable() const { return true; }
@@ -187,7 +222,7 @@ namespace
 
         StoneResponse collision_response(const StoneContact &/*sc*/) {
             static int lastCode = -1;
-            int        code     = getAttr("code");
+            int        code     = int_attrib("code");
             if (code != lastCode) {
                 fprintf(stderr, "Collision with stone 0x%02x\n", code);
                 lastCode = code;
@@ -329,6 +364,7 @@ namespace
     class SwapStone : public Stone, public TimeHandler {
     public:
         SwapStone();
+        ~SwapStone();
     private:
         // Object interface
         SwapStone *clone();
@@ -359,6 +395,10 @@ SwapStone::SwapStone()
   in_exchange_with(0),
   move_dir(NODIR)
 {}
+
+SwapStone::~SwapStone() {
+    GameTimer.remove_alarm(this);
+}
 
 SwapStone *SwapStone::clone() {
     SwapStone *other        = new SwapStone(*this);
@@ -724,7 +764,7 @@ namespace
         Break_acwhite() : BreakableStone("st-break_acwhite") {}
     private:
         bool may_be_broken_by(Actor *a) const {
-            return (a->getAttr("whiteball") != 0) &&
+            return a->get_attrib("whiteball") &&
                 player::WieldedItemIs (a, "it-hammer");
         }
     };
@@ -754,7 +794,7 @@ namespace
         Break_acblack() : BreakableStone("st-break_acblack") {}
     private:
         bool may_be_broken_by(Actor *a) const {
-            return (a->getAttr("blackball") != 0) &&
+            return a->get_attrib("blackball") &&
                 player::WieldedItemIs (a, "it-hammer");
         }
     };
@@ -1125,9 +1165,12 @@ namespace
         DECL_TRAITS;
 
         void actor_hit(const StoneContact &sc) {
-            double strength = getAttr("strength", 10.0);
-            double length = getAttr("length", 1.0);
-            double minlength = getAttr("minlength");
+            double strength = 10.0;
+            double length = 1.0;
+            double minlength = 0.0;
+            double_attrib ("strength", &strength);
+            double_attrib ("length", &length);
+            double_attrib ("minlength", &minlength);
 
             world::RubberBandData rbd;
             rbd.strength = strength;
@@ -1136,7 +1179,8 @@ namespace
 
             // The mode attribute "scissor" defines, if when touching an st-rubberband,
             // other rubberbands to the actor will be cut of or not, true means they will. true is default.
-            bool isScissor = to_bool(getAttr("scissor","true"));
+            enigma::Value const *scissorValue = get_attrib("scissor");
+            bool isScissor = (scissorValue == NULL)? true : to_bool(*scissorValue);
 
             if (!world::HasRubberBand (sc.actor, this)) {
                 sound_event ("rubberband");
@@ -1145,7 +1189,7 @@ namespace
                 }
                 world::AddRubberBand (sc.actor, this, rbd);
             }
-            // if (player::wielded_item_is (sc.actor, "it-magicwand"))
+//             if (player::wielded_item_is (sc.actor, "it-magicwand"))
             maybe_push_stone (sc);
         }
 
@@ -1154,6 +1198,9 @@ namespace
             if (a && player::WieldedItemIs (a, "it-magicwand"))
                 move_stone(impulse.dir);
         }
+
+        
+
     public:
         RubberBandStone () {
             set_attrib("length", 1.0);
@@ -1214,17 +1261,17 @@ namespace
             // set_on(true);   DOESN'T WORK! calls init_model()
         }
         
-        virtual ~TimerStone() {
-            GameTimer.remove_alarm (this);
-        }
+        virtual ~TimerStone();
     private:
         int m_signalvalue;
 
         double get_interval() const {
-            return getAttr("interval", 100);
+            double interval = 100;
+            double_attrib("interval", &interval);
+            return interval;
         }
         void init_model() {
-            if (getAttr("invisible") == 1) {
+            if (int_attrib("invisible")) {
                 set_model("invisible");
             }
             else {
@@ -1254,9 +1301,13 @@ namespace
             if (newon)
                 set_alarm();
             else
-                GameTimer.remove_alarm (this);
+                GameTimer.remove_alarm(this);
         }
     };
+
+    TimerStone::~TimerStone() {
+        GameTimer.remove_alarm(this);
+    }
 }
 
 
@@ -1402,7 +1453,8 @@ void ThiefStone::actor_hit(const StoneContact &sc) {
         set_anim("st-thief-emerge");
         state = EMERGING;
         m_affected_actor = sc.actor;
-        affected_player = m_affected_actor->getAttr("player", -1);
+        affected_player = -1;
+        m_affected_actor->int_attrib("player", &affected_player);
     }
 }
 
@@ -1480,7 +1532,8 @@ namespace
                 // actor_hit is called before reflect, but the force added below
                 // is applied to actor after the reflection.
 
-                double forcefac = getAttr("force", server::BumperForce);
+                double forcefac = server::BumperForce;
+                double_attrib("force", &forcefac);
 
                 V2 vec = normalize(sc.actor->get_pos() - get_pos().center());
                 sc.actor->add_force (distortedVelocity(vec, forcefac));                
@@ -1606,11 +1659,11 @@ namespace
 
         StoneResponse collision_response(const StoneContact &sc) {
             if (m_type < 4) {
-                return (sc.actor->getAttr("blackball") != 0) ? 
+                return (sc.actor->get_attrib("blackball")) ? 
                     STONE_PASS : STONE_REBOUND;
             }
             else {
-                return (sc.actor->getAttr("whiteball") != 0) ? 
+                return (sc.actor->get_attrib("whiteball")) ? 
                     STONE_PASS : STONE_REBOUND;
             }
         }
@@ -1674,8 +1727,8 @@ namespace
 
     private:
         void actor_hit(const StoneContact &sc) {
-            if      (sc.actor->getAttr("blackball") != 0) turn_white();
-            else if (sc.actor->getAttr("whiteball") != 0) turn_black();
+            if      (sc.actor->get_attrib("blackball")) turn_white();
+            else if (sc.actor->get_attrib("whiteball")) turn_black();
         }
     };
 
@@ -1685,8 +1738,8 @@ namespace
         YinYangStone2() : YinYangStone("st-yinyang2") {}
     private:
         void actor_hit(const StoneContact &sc) {
-            if      (sc.actor->getAttr("blackball") != 0) turn_black();
-            else if (sc.actor->getAttr("whiteball") != 0) turn_white();
+            if      (sc.actor->get_attrib("blackball")) turn_black();
+            else if (sc.actor->get_attrib("whiteball")) turn_white();
         }
     };
 
@@ -1702,9 +1755,9 @@ namespace
             if (player::WieldedItemIs (sc.actor, "it-magicwand") ||
                 player::WieldedItemIs (sc.actor, "it-brush"))
             {
-                if      (sc.actor->getAttr("blackball") != 0) 
+                if      (sc.actor->get_attrib("blackball")) 
                     turn_white("st-white4");
-                else if (sc.actor->getAttr("whiteball") != 0) 
+                else if (sc.actor->get_attrib("whiteball")) 
                     turn_black("st-black4");
             }
         }
@@ -1782,7 +1835,7 @@ namespace
         CLONEOBJ(MagicStone);
         DECL_TRAITS;
         void actor_hit(const StoneContact &sc) {
-            if (sc.actor->getAttr("player") && 
+            if (sc.actor->get_attrib("player") && 
                 sc.actor->get_vel() * sc.normal < -4)
             {
                 KillStone(get_pos());
@@ -2092,6 +2145,14 @@ namespace
         void init_model() { set_model(is_on() ? "st-glass1" : "st-glass2"); }
         bool is_transparent(Direction) const { return this->is_on(); }
         void notify_onoff(bool) { lasers::MaybeRecalcLight(this->get_pos()); }
+
+        StoneResponse collision_response(const StoneContact &sc) {
+            if (sc.actor->is_invisible())
+                return STONE_PASS;
+            return Stone::collision_response(sc);
+        }
+
+        bool is_sticky (const Actor *actor) const { return !actor->is_invisible(); }
     };
     DEF_TRAITS(PolarSwitchStone, "st-polarswitch", st_polarswitch);
 }

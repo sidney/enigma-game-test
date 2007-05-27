@@ -34,6 +34,7 @@
 
 using namespace std;
 using namespace enigma;
+using namespace world;
 using world::Actor;
 using enigma::Inventory;
 
@@ -235,8 +236,8 @@ Inventory * player::GetInventory (int iplayer)
 
 Inventory * player::GetInventory (Actor *a) 
 {
-    if (Value v = a->getAttr("player"))
-        return GetInventory((int)v);
+    if (const Value *v = a->get_attrib("player"))
+        return GetInventory(to_int(*v));
     return 0;
 }
 
@@ -285,8 +286,10 @@ void player::SetRespawnPositions(GridPos pos, bool black)
         vector<Actor *> &al = players[i].actors;
 
         for (unsigned j=0; j<al.size(); ++j) {
-            if (al[j]->getAttr(black ? "blackball" : "whiteball"))
+            const Value *val = al[j]->get_attrib(black ? "blackball" : "whiteball");
+            if (val) {
                 al[j]->set_respawnpos(center);
+            }
         }
     }
 }
@@ -297,8 +300,10 @@ void player::RemoveRespawnPositions(bool black) {
         vector<Actor *> &al = players[i].actors;
 
         for (unsigned j=0; j<al.size(); ++j) {
-            if (al[j]->getAttr(black ? "blackball" : "whiteball"))
+            const Value *val = al[j]->get_attrib(black ? "blackball" : "whiteball");
+            if (val) {
                 al[j]->remove_respawnpos();
+            }
         }
     }
 }
@@ -405,11 +410,9 @@ static void CheckDeadActors()
         for (size_t i=0; i<actors.size(); ++i) {
             Actor *a = actors[i];
             std::string essId;
-            if (Value v = a->getAttr("essential_id"))
-                essId = v.to_string();
-            else
+            if (!a->string_attrib ("essential_id", &essId))
                 essId = a->get_traits().name;
-            int essential = a->getAttr("essential");
+            int essential = a->int_attrib("essential");
             // count number of necessary actors per kind
             if (essential == 1)
                 --essMap[essId];
@@ -531,10 +534,10 @@ void player::InhibitPickup(bool flag) {
 
 /*! Return pointer to inventory if actor may pick up items, 0
    otherwise. */
-Inventory *player::MayPickup(Actor *a) 
+Inventory *player::MayPickup(Actor *a, Item *it) 
 {
     int iplayer=-1;
-    if (Value v = a->getAttr("player")) iplayer = v;
+    a->int_attrib("player", &iplayer);
     if (iplayer < 0 || (unsigned)iplayer >= players.size()) {
         //        cerr << "PickupItem: illegal 'player' entry\n";
         return 0;
@@ -543,26 +546,27 @@ Inventory *player::MayPickup(Actor *a)
     Inventory *inv = GetInventory(iplayer);
     bool dont_pickup = players[iplayer].inhibit_pickup 
         || a->is_flying()
-        || inv->is_full();
+        || !inv->willAddItem(it)
+        || a->is_dead();
 
     return dont_pickup ? 0 : inv;
 }
 
 void player::PickupItem (Actor *a, GridPos p) 
 {
-    if (Inventory *inv = MayPickup(a)) {
+    if (Inventory *inv = MayPickup(a, GetField(p)->item)) {
         if (Item *item = world::YieldItem(p)) {
             item->on_pickup(a);
             inv->add_item(item);
             RedrawInventory (inv);
-            sound::SoundEvent ("pickup", p.center());
+            sound::EmitSoundEvent ("pickup", p.center());
         }
     }
 }
 
 void player::PickupStoneAsItem (Actor *a, enigma::GridPos p) 
 {
-    if (Inventory *inv = MayPickup(a)) 
+    if (Inventory *inv = MayPickup(a, GetField(p)->item)) 
     {
         if (world::Stone *stone = world::YieldStone(p)) 
         {
@@ -575,7 +579,7 @@ void player::PickupStoneAsItem (Actor *a, enigma::GridPos p)
                 world::DisposeObject (stone);
                 inv->add_item(item);
                 player::RedrawInventory(inv);
-                sound::SoundEvent ("pickup", p.center());
+                sound::EmitSoundEvent ("pickup", p.center());
             }
         }
     }
@@ -618,7 +622,7 @@ void player::ActivateFirstItem()
 
 void player::RotateInventory(int dir) 
 {
-    sound::SoundEvent ("invrotate", ecl::V2());
+    sound::EmitSoundEvent ("invrotate", ecl::V2());
     Inventory &inv = players[icurrent_player].inventory;
     if (dir == 1)
         inv.rotate_left ();

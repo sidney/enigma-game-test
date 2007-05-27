@@ -182,58 +182,53 @@ void StatusBarImpl::redraw (ecl::GC &gc, const ScreenArea &r) {
         Surface   *s_time      = 0;
         Surface   *s_moves     = 0;
         Font      *timefont    = enigma::GetFont ("timefont");
+        Font      *movesfont   = enigma::GetFont ("smallfont");
+        ScreenArea timearea    = vminfo->sb_timearea;
+        ScreenArea movesarea   = vminfo->sb_movesarea;
 
         if (m_showtime_p) {
             double     abstime       = m_leveltime >= 0 ? m_leveltime : fabs(floor(m_leveltime));
-            int        minutes       = static_cast<int>(abstime/60) % 100;
+            int        minutes       = static_cast<int>(abstime/60);
             int        seconds       = static_cast<int>(abstime) % 60;
-//             const int  SIZE_PER_CHAR = 16; // depends on fontsize (28 for timefont)
 
+            if (minutes >= 100) {
+                minutes = 99;
+                seconds = 59;
+            }
             snprintf(buf, BUFSIZE,
                      m_leveltime >= 0 ? "%d:%02d" : "-%d:%02d",
                      minutes, seconds);
             s_time = timefont->render(buf);
             xsize_time = s_time->width();
-//             xsize_time = static_cast<int>((len-0.5)*SIZE_PER_CHAR);
         }
 
         if (m_showcounter_p) {
-            Font      *f             = enigma::GetFont ("smallfont");
-            int        len           = snprintf(buf, BUFSIZE, "%d", m_counter);
-            const int  SIZE_PER_CHAR = 8; // depends on fontsize (14 for smallfont)
-
-            s_moves     = f->render(buf);
-            xsize_moves = static_cast<int>(len*SIZE_PER_CHAR);
+            int len = snprintf(buf, BUFSIZE, "%d", m_counter);
+            s_moves     = movesfont->render(buf);
+            xsize_moves = s_moves->width();
         }
 
-        const int YOFF_MOVES = 26;
-//         const int YOFF_MOVES = 36;
-        const int YOFF_TIME  = 13;
-        const int XCENTER    = 66;
 
         if (m_showtime_p) {
-            ScreenArea timearea = vminfo->sb_timearea;
             if (m_showcounter_p) { // time + moves
-                const int DISPLAY_WIDTH = 120; // est.
-                int       width         = xsize_time + xsize_moves;
-                int       left_width    = (DISPLAY_WIDTH*xsize_time)  / width;
-                int       right_width   = (DISPLAY_WIDTH*xsize_moves) / width;
-
-                int xoff = XCENTER + (left_width - xsize_time - DISPLAY_WIDTH)/2 - 3 ;
-                blit(gc, a.x + xoff, a.y + YOFF_TIME, s_time);
-
-                xoff = XCENTER + (DISPLAY_WIDTH-right_width-xsize_moves)/2 + 3;
-                blit(gc, a.x + xoff, a.y + YOFF_MOVES, s_moves);
+                int x = timearea.x + (movesarea.x - timearea.x - xsize_time)/2;
+                int y = timearea.y + (timearea.h - timefont->get_lineskip())/2;
+                blit(gc, x, y, s_time);
+                
+                x = movesarea.x + (movesarea.w - xsize_moves)/2;
+                y = movesarea.y + (movesarea.h + timefont->get_lineskip())/2 - movesfont->get_lineskip() - 4;
+                blit(gc, x, y, s_moves);
             }
             else { // only time
-                int x = timearea.x + (timearea.w - s_time->width())/2;
+                int x = timearea.x + (timearea.w - xsize_time)/2;
                 int y = timearea.y + (timearea.h - timefont->get_lineskip())/2;
                 blit(gc, x, y, s_time);
             }
         }
-        else {                  // only moves
-            int xoff = XCENTER - xsize_moves/2;
-            blit(gc, a.x + xoff, a.y + YOFF_MOVES, s_moves);
+        else {                  // only moves            
+            int x = timearea.x + (timearea.w - xsize_moves)/2;
+            int y = timearea.y + (timearea.h - movesfont->get_lineskip())/2;
+            blit(gc, x, y, s_moves);
         }
 
         delete s_moves;
@@ -616,23 +611,17 @@ void DisplayEngine::update_layer (DisplayLayer *l, WorldArea wa)
 
     int x2 = wa.x+wa.w;
     int y2 = wa.y+wa.h;
-    int y2m1 = y2 - 1;
 
     clip(gc, get_area());
-    int xpos, ypos0;
-    world_to_screen (V2(wa.x, wa.y), &xpos, &ypos0);
+    int xpos0, ypos;
+    world_to_screen (V2(wa.x, wa.y), &xpos0, &ypos);
 
     l->prepare_draw (wa);
-    for (int x=wa.x; x<x2; x++, xpos += m_tilew) {
-        int ypos = ypos0;
-        for (int y=wa.y; y<y2; y++, ypos += m_tileh) {
+    for (int y=wa.y; y<y2; y++, ypos += m_tileh) {
+        int xpos = xpos0;
+        for (int x=wa.x; x<x2; x++, xpos += m_tilew) {
             if (m_redrawp(x,y) == 1)
-                if (y<y2m1 && m_redrawp(x,y+1) == 1) {
-                    l->draw (gc, WorldArea(x,y,1,2), xpos, ypos);
-                    y++;
-                    ypos += m_tileh;
-                } else
-                    l->draw (gc, WorldArea(x,y,1,1), xpos, ypos);
+                l->draw (gc, WorldArea(x,y,1,1), xpos, ypos);
         }
     }
     l->draw_onepass (gc);
@@ -884,8 +873,6 @@ void DL_Sprites::new_world (int w, int h) {
     ModelLayer::new_world (w,h);
     delete_sequence (sprites.begin(), sprites.end());
     sprites.clear();
-    Sprite *dummy = NULL;
-    bottomSprites.assign(w, dummy);
     numsprites = 0;
 }
 
@@ -896,14 +883,15 @@ void DL_Sprites::move_sprite (SpriteId id, const ecl::V2& newpos)
     int newx, newy;
     get_engine()->world_to_video (newpos, &newx, &newy);
 
-    if (newx != sprite->screenpos[0] || newy != sprite->screenpos[1]) {
-        update_sprite_region(sprite, false); // make sure old sprite is removed
+    if (newx != sprite->screenpos[0] || newy != sprite->screenpos[1] ||
+            sprite->mayNeedRedraw ) {
+        redraw_sprite_region(id); // make sure old sprite is removed
         sprite->pos = newpos;
         sprite->screenpos[0] = newx;
         sprite->screenpos[1] = newy;
         if (Anim2d* anim = dynamic_cast<Anim2d*>(sprite->model))
             anim->move (newx, newy);
-        update_sprite_region(sprite, true); // draw new sprite
+        redraw_sprite_region(id); // draw new sprite
     }
 }
 
@@ -930,7 +918,7 @@ SpriteId DL_Sprites::add_sprite (Sprite *sprite)
     get_engine()->world_to_video (sprite->pos, &sprite->screenpos[0], &sprite->screenpos[1]);
     if (Model *m = sprite->model)
         m->expose (this, sprite->screenpos[0], sprite->screenpos[1]);
-    update_sprite_region(sprite, true);
+    redraw_sprite_region(id);
     numsprites += 1;
     return id;
 }
@@ -938,20 +926,20 @@ SpriteId DL_Sprites::add_sprite (Sprite *sprite)
 void DL_Sprites::replace_sprite (SpriteId id, Model *m) {
     Sprite *sprite = sprites[id];
     if (Model *old = sprite->model) {
-        update_sprite_region(sprite, false);
+        redraw_sprite_region(id);
         old->remove (this);
         delete old;
     }
     sprite->model = m;
     if (m) {
         m->expose (this, sprite->screenpos[0], sprite->screenpos[1]);
-        update_sprite_region(sprite, true);
+        redraw_sprite_region(id);
     }
 }
 
 void DL_Sprites::kill_sprite (SpriteId id) {
     if (Sprite *sprite = sprites[id]) {
-        update_sprite_region(sprite, false);
+        redraw_sprite_region(id);
         if (Model *m = sprite->model) {
             m->remove (this);
         }
@@ -965,28 +953,22 @@ void DL_Sprites::draw (ecl::GC &gc, const WorldArea &a, int /*x*/, int /*y*/)
 {
     DisplayEngine *engine = get_engine();
     clip (gc, intersect (engine->get_area(), engine->world_to_screen(a)));
-    draw_sprites (false, gc, a);
+    draw_sprites (false, gc);
 }
 
 
-void DL_Sprites::draw_sprites (bool drawshadowp, GC &gc, const WorldArea &a) {
+void DL_Sprites::draw_sprites (bool drawshadowp, GC &gc) {
     SpriteList &sl = sprites;
 
-//    for (unsigned i=0, sl_size=sl.size() ; i<sl_size; ++i) {
-//        Sprite *s = sl[i];
-    int gx = a.x;
-    for (int i = 0; i < a.w; i++, gx++) {
-        int m = gx%3;
-        Sprite *s = bottomSprites[gx];
-        for ( ; s != NULL; s = s->above[m]) {
-            if (s && s->model && s->visible) {
-                int sx, sy;
-                get_engine()->world_to_screen(s->pos, &sx, &sy);
-                if (drawshadowp)
-                    s->model->draw_shadow(gc, sx, sy);
-                else
-                    s->model->draw(gc, sx, sy);
-            }
+    for (unsigned i=0; i<sl.size(); ++i) {
+        Sprite *s = sl[i];
+        if (s && s->model && s->visible) {
+            int sx, sy;
+            get_engine()->world_to_screen(s->pos, &sx, &sy);
+            if (drawshadowp)
+                s->model->draw_shadow(gc, sx, sy);
+            else
+                s->model->draw(gc, sx, sy);
         }
     }
 }
@@ -996,12 +978,9 @@ void DL_Sprites::draw_onepass (ecl::GC &gc)
 //     draw_sprites (false, gc);
 }
 
-void DL_Sprites::redraw_sprite_region (SpriteId id) {
+void DL_Sprites::redraw_sprite_region (SpriteId id) 
+{
     Sprite *s = sprites[id];
-    update_sprite_region(s, true, true);
-}
-
-void DL_Sprites::update_sprite_region (Sprite * s, bool is_add, bool is_redraw_only) {
     if (s && s->model) {
         Rect r, redrawr;
         s->model->get_extension (r);
@@ -1010,35 +989,6 @@ void DL_Sprites::update_sprite_region (Sprite * s, bool is_add, bool is_redraw_o
         DisplayEngine *e = get_engine();
         e->video_to_world (r, redrawr);
         e->mark_redraw_area (redrawr);
-        if (is_redraw_only)
-            return;
-        
-        int x = redrawr.x;
-        for (int i = 0; i < redrawr.w; i++, x++) {
-            if (x >= 0 && x < e->get_width()) {
-                int m = x%3;
-                if (is_add) {
-                    if (bottomSprites[x] != NULL)
-                        bottomSprites[x]->beneath[m] = s;
-                    s->above[m] = bottomSprites[x];
-                    s->beneath[m] = NULL;
-                    bottomSprites[x] = s;
-                } else {  // remove
-                    if (bottomSprites[x] == s) {
-                        bottomSprites[x] = s->above[m];
-                        if (s->above[m] != NULL)
-                            s->above[m]->beneath[m] = NULL;
-                    } else {
-                        if (s->above[m] != NULL) {
-                            s->above[m]->beneath[m] = s->beneath[m];
-                        }
-                        if (s->beneath[m] != NULL) {
-                            s->beneath[m]->above[m] = s->above[m];
-                        }
-                    }
-                }           
-            }
-        }
     }
 }
 
@@ -1567,20 +1517,14 @@ void DL_Shadows::draw(GC &gc, int xpos, int ypos, int x, int y) {
                 set_color (gc2, 255, 255, 255);
                 box (gc2, buffer->size());
             }
-            
-//            for (unsigned i=0; i<m_sprites->sprites.size(); ++i) {
-//                if (Sprite *sp = m_sprites->sprites[i]) {
-//                    
-            int m = x%3;
-            Sprite *sp = m_sprites->bottomSprites[x];
-            for ( ; sp != NULL; sp = sp->above[m]) {
-                            
+            for (unsigned i=0; i<m_sprites->sprites.size(); ++i) {
+                if (Sprite *sp = m_sprites->sprites[i]) {
                     if (sp->visible && sp->model) {
                         int sx = round_nearest<int>(sp->pos[0]*tilew) - x*tilew;
                         int sy = round_nearest<int>(sp->pos[1]*tileh) - y*tileh;
                         sp->model->draw_shadow(gc2, sx, sy);
                     }
-//                }
+                }
             }
             blit(gc, xpos, ypos, buffer);
         }
@@ -2080,9 +2024,7 @@ void GameDisplay::resize_game_area (int w, int h)
 
 /* -------------------- Global functions -------------------- */
 
-void display::Init(bool show_fps) {
-    if (show_fps)        // keep ShowFPS on false for screen resolution changes
-        ShowFPS = true;  
+void display::Init() {
     InitModels();
 
     const video::VMInfo *vminfo = video::GetInfo();

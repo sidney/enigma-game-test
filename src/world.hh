@@ -81,7 +81,7 @@ namespace world
         // Variables.
         Actor           *actor;
         GridPos         stonepos;
-        StoneID         stoneid;
+	StoneID         stoneid;
         StoneResponse   response;
 
         V2      contact_point;  // Where do the shapes meet? (world coordinates)
@@ -267,7 +267,6 @@ namespace world
 
     void   AddActor (Actor *a);
     void   AddActor (double x, double y, Actor* a);
-    void   DidMoveActor (Actor *a);
 
     Actor *YieldActor(Actor *a);
     void   KillActor (Actor *a);
@@ -351,6 +350,9 @@ namespace world
     void addDelayedImpulse(const Impulse& impulse, double delay,
                            const Stone *estimated_receiver);
 
+    /*! Revoke all delayed impulses with TARGET as sender or receiver. */
+    void revokeDelayedImpulses(const Stone *target);
+
 
 /* -------------------- Explosions -------------------- */
 
@@ -362,6 +364,10 @@ namespace world
         EXPLOSION_SPITTER,
     };
     void SendExplosionEffect (GridPos p, ExplosionType type);
+
+/* -------------------- Sound Events and Damping -------------------- */
+
+    float getVolume(const char *name, Object *obj, float def_volume = 1.0);
 
 /* -------------------- Creation/Definition of objects -------------------- */
 

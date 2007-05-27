@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT([enigma],[1.00])
+AC_INIT([enigma],[1.01])
 AC_PREREQ(2.59)
 AC_CANONICAL_BUILD
 AC_CANONICAL_TARGET
@@ -9,7 +9,7 @@ AM_INIT_AUTOMAKE(AC_PACKAGE_TARNAME, AC_PACKAGE_VERSION, -)
 AC_CONFIG_HEADERS([src/config.h])
 AC_GNU_SOURCE
 
-ALL_LINGUAS="de fr nl it es sv ru hu pt"
+ALL_LINGUAS="de fr nl it es sv ru hu pt fi"
 AC_SUBST(ALL_LINGUAS)
 AM_GNU_GETTEXT
 
@@ -282,23 +282,6 @@ else
 fi
 
 dnl ----------------------------------------
-dnl Check for profiling
-dnl ----------------------------------------
-
-AC_MSG_CHECKING(whether to profile the game)
-AC_ARG_ENABLE(profile,
-  AS_HELP_STRING(--enable-profile,Compile with profiling option for gdb), ,
-  enable_profile=no
-)
-if test "x$enable_profile" = xyes; then
-	CXXFLAGS="$CXXFLAGS -pg"
-	AC_MSG_RESULT(yes)
-else
-	CXXFLAGS="$CXXFLAGS"
-	AC_MSG_RESULT(no)
-fi
-
-dnl ----------------------------------------
 dnl Check for C++ Lua
 dnl ----------------------------------------
 
@@ -346,7 +329,6 @@ AC_CONFIG_FILES([Makefile m4/Makefile  intl/Makefile
            data/gfx32/Makefile
            data/gfx40/Makefile
            data/gfx48/Makefile
-           data/gfx64/Makefile
            data/levels/Makefile
            data/levels/enigma_tutorial/Makefile
            data/levels/enigma_i/Makefile
@@ -371,9 +353,12 @@ AC_CONFIG_FILES([Makefile m4/Makefile  intl/Makefile
            data/levels/patches/Makefile
            data/fonts/Makefile
            data/sound/Makefile
+           data/soundsets/Makefile
+           data/soundsets/enigma/Makefile
            data/schemas/Makefile
 	   doc/Makefile
 	   doc/images/Makefile
+	   doc/images/flags25x15/Makefile
 	   doc/manual/Makefile
 	   doc/manual/images/Makefile
 	   doc/reference/Makefile
@@ -387,6 +372,7 @@ AC_CONFIG_FILES([Makefile m4/Makefile  intl/Makefile
 	   tools/Makefile
 	   etc/enigma.spec
 	   etc/enigma.nsi
+	   etc/Info.plist
 	   po/Makefile.in
 ])
 

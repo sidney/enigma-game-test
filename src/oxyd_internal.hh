@@ -155,7 +155,7 @@ namespace oxyd
         /* ---------- LevelPack interface ---------- */
         string get_name() const;
         int size() const { return nlevels; }
-        int get_default_SoundSet() const;
+        const char* get_default_SoundSet() const;
         bool needs_twoplayers() const;
     protected:
         virtual bool has_easymode(size_t /*index*/) const;
@@ -235,7 +235,7 @@ namespace oxyd
     class GameInfo {
     public:
         GameInfo();
-        GameInfo (OxydVersion ver_, const string &game_, const string &datfile_name_);
+        GameInfo (OxydVersion ver_, const string &game_, const string &datfile_name_, const bool searchDAT);
         ~GameInfo();
 
         bool is_present() const { return m_present; }

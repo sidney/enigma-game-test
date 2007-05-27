@@ -19,7 +19,7 @@
 #ifndef ENIGMA_MAIN_HH
 #define ENIGMA_MAIN_HH
 
-#define ENIGMACOMPATIBITLITY 1.10
+#define ENIGMACOMPATIBITLITY 1.01
 #define PREFFILENAME "enigmarc.xml"
 #define RATINGSFILENAME "ratings.xml"
 
@@ -212,9 +212,12 @@ namespace enigma
         void initSysDatapaths(const std::string &prefFilename);
         void initXerces();
         void initUserDatapaths();
+        void updateMac1_00();
         std::string systemAppDataPath;    // dir path to the apps data
         std::string systemCmdDataPath;    // commandline override of systemAppDataPath
         std::string userStdPath;          // standard user data path
+        std::string userStdPathMac1_00;   // standard user data path as of Mac 1.00
+        
         void init_i18n();
     };
 

@@ -197,15 +197,12 @@ namespace display
         int          screenpos[2];
         SpriteLayer  layer;
         bool         visible;
-        Sprite *     above[3];
-        Sprite *     beneath[3];
+        bool         mayNeedRedraw;
 
         Sprite (const V2 & p, SpriteLayer l, Model *m)
-        : model(m), pos(p), layer(l), visible(true)
+        : model(m), pos(p), layer(l), visible(true), mayNeedRedraw(false)
         {
             screenpos[0] = screenpos[1] = 0;
-            above[0] = above[1] = above[2] = NULL;
-            beneath[0] = beneath[1] = beneath[2] = NULL;
         }
         ~Sprite() { delete model; }
     };
@@ -229,7 +226,7 @@ namespace display
         void replace_sprite (SpriteId id, Model *m);
 
         void redraw_sprite_region (SpriteId id);
-        void draw_sprites (bool shades, ecl::GC &gc, const WorldArea &a);
+        void draw_sprites (bool shades, ecl::GC &gc);
 
         Model *get_model (SpriteId id) { return sprites[id]->model; }
 
@@ -239,11 +236,8 @@ namespace display
 
         static const SpriteId MAGIC_SPRITEID = 1000000;
         SpriteList sprites;
-        SpriteList bottomSprites; // bottom sprite for each x
 
     private:
-        void update_sprite_region (Sprite * s, bool is_add, bool is_redraw_only = false);
-        
         // ModelLayer interface
         virtual void tick (double /*dtime*/);
 
