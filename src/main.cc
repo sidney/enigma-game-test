@@ -45,6 +45,7 @@
 #include "enet/enet.h"
 
 #include <locale.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -110,20 +111,17 @@ static std::fstream logfile;
 
 static void usage()
 {
-    printf("Usage: %s [OPTION]... [levelfile.xml]...\n\n"
+    printf("Usage: %s [options] [level files]\n\n"
            "Available options :\n\n"
-           "    --assert       Evaluate all debugging assertions\n"
-           "    --data -d path Load data from additional directory\n"
-           "    --help -h      Show this help\n"
-           "    --lang -l lang Set game language\n"
-           "    --log          Turn on logging to the standard output\n"
-           "    --nograb       Do not use exclusive mouse/keyboard access\n"
-           "    --nomusic      Disable music\n"
-           "    --nosound      Disable music and sound effects\n"
-           "    --pref -p file Use filename or dirname for preferences\n"
-           "    --showfps      Show the framerate (FPS) during the Game\n"
-           "    --version      Print the executable's version number\n"
-           "    --window -w    Run in a window; do not enter fullscreen mode\n"
+           "    --nosound       Disable music and sound\n"
+           "    --nomusic       Disable music\n"
+           "    --window -w     Run in a window; do not enter fullscreen mode\n"
+           "    --help -h       Show this help\n"
+           "    --version       Print the executable's version number\n"
+           "    --nograb        Do not use exclusive mouse/keyboard access\n"
+           "    --data -d path  Load data from additional directory\n"
+           "    --lang -l lang  Set game language\n"
+           "    --pref -p file  Use filename or dirname for preferences\n"
            "\n",
            app.progCallPath.c_str()
            );
@@ -138,7 +136,7 @@ namespace
 
         // Variables.
         bool nosound, nomusic, show_help, show_version, do_log, do_assert, force_window;
-        bool dumpinfo, makepreview, show_fps;
+        bool dumpinfo, makepreview;
         string gamename;
         string datapath;
         string preffilename;
@@ -164,7 +162,7 @@ namespace
 AP::AP() : ArgParser (app.args.begin(), app.args.end())
 {
     nosound  = nomusic = show_help = show_version = do_log = do_assert = force_window = false;
-    dumpinfo = makepreview = show_fps = false;
+    dumpinfo = makepreview = false;
     gamename = "";
     datapath = "";
     preffilename = PREFFILENAME;
@@ -179,7 +177,6 @@ AP::AP() : ArgParser (app.args.begin(), app.args.end())
     def (&do_assert,            "assert");
     def (&dumpinfo,             "dumpinfo");
     def (&makepreview,          "makepreview");
-    def (&show_fps,             "showfps");
     def (&force_window,         "window", 'w');
     def (OPT_GAME,              "game", true);
     def (OPT_DATA,              "data", 'd', true);
@@ -231,8 +228,6 @@ Application::Application() : wizard_mode (false), nograb (false), language (""),
 
 void Application::init(int argc, char **argv) 
 {
-    sscanf(PACKAGE_VERSION, "%4lf", &enigmaVersion);
-
     progCallPath = argv[0];
     copy(argv+1, argv+argc, back_inserter(args));
     
@@ -285,10 +280,10 @@ void Application::init(int argc, char **argv)
     prefs = PreferenceManager::instance();
     
     if (ap.force_window) {
-        app.prefs->setProperty("FullScreen1.1", false);
+        options::SetOption("FullScreen", false);
     }
     if (isMakePreviews) {
-        app.prefs->setProperty("VideoMode1.1", 0);  // we will not save the prefs!
+        options::SetOption("VideoMode", 0);
     }
 
     // initialize user data paths -- needs preferences, system datapaths
@@ -305,9 +300,6 @@ void Application::init(int argc, char **argv)
     }
 
     // ----- Initialize SDL library
-#ifdef WIN32
-//    SDL_putenv("SDL_VIDEODRIVER=directx");  //needed for SDL 1.2.12 that crashes on SetGamma on default GDI driver
-#endif
     int sdl_flags = SDL_INIT_VIDEO;
     if (enigma::WizardMode)
         sdl_flags |= SDL_INIT_NOPARACHUTE;
@@ -343,7 +335,7 @@ void Application::init(int argc, char **argv)
     }
 
     // ----- Load models
-    display::Init(ap.show_fps);
+    display::Init();
 
     // initialize application state
     state = StateManager::instance();
@@ -400,14 +392,11 @@ void Application::init(int argc, char **argv)
         scr->flush_updates();
         
         int i = 0;
-        for (int m=0; m<2; m++) {
-            for (it = proxies.begin(); it != proxies.end(); it++, i++) {
-                gui::LevelPreviewCache::makeSystemPreview(*it, systemAppDataPath);
-                vline(gc, 170 + i*150 / size, 280, 20);
-                scr->update_all ();
-                scr->flush_updates();
-            }
-            video::SetThumbInfo(160, 104, "-160x104");
+        for (it = proxies.begin(); it != proxies.end(); it++, i++) {
+            gui::LevelPreviewCache::makeSystemPreview(*it, systemAppDataPath);
+            vline(gc, 170 + i*300 / size, 280, 20);
+            scr->update_all ();
+            scr->flush_updates();
         }
         return;
     }
@@ -418,6 +407,8 @@ void Application::init(int argc, char **argv)
 
 std::string Application::getVersionInfo() {
     std::string versionInfo;
+    double enigmaVersion;
+    sscanf(PACKAGE_VERSION,"%4lf",&enigmaVersion);
     if (enigmaVersion >= ENIGMACOMPATIBITLITY)
         versionInfo = "v" PACKAGE_VERSION;
     else {
@@ -426,10 +417,6 @@ std::string Application::getVersionInfo() {
             ecl::strf("%.2f",ENIGMACOMPATIBITLITY) + " compatibilty branch)";
     }
     return versionInfo;
-}
-
-double Application::getEnigmaVersion() {
-    return enigmaVersion;
 }
 
 void Application::initSysDatapaths(const std::string &prefFilename)

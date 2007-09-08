@@ -92,7 +92,7 @@ namespace
     }
 }
 
-
+
 /* -------------------- Variables -------------------- */
 
 namespace
@@ -103,6 +103,7 @@ namespace
 
 #define CLIENT client_instance
 
+
 /* -------------------- Client class -------------------- */
 
 Client::Client() 
@@ -258,6 +259,7 @@ void Client::rotate_inventory (int direction)
     player::RotateInventory(direction);
 }
 
+
 /* -------------------- Console related -------------------- */
 
 class HistoryProxy {

@@ -13,7 +13,7 @@
 
 namespace zipios {
 
-/** ZipOutputStreambuf is a zip output streambuf filter.  */
+/** ZipOutputStreambuf is a zip input streambuf filter.  */
 class ZipOutputStreambuf : public DeflateOutputStreambuf {
 public:
 

@@ -6,8 +6,6 @@
 #include "zipios++/zipoutputstreambuf.h"
 #include "zipios++/zipoutputstream.h"
 
-using std::ostream;
-
 namespace zipios {
 
 ZipOutputStream::ZipOutputStream( std::ostream &os ) 

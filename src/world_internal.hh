@@ -27,7 +27,7 @@ namespace world
     typedef ecl::Array2<Field> FieldArray;
 
     typedef vector<ForceField*>  ForceList;
-//    typedef vector<StoneContact> StoneContactList;
+    typedef vector<StoneContact> StoneContactList;
     typedef vector<Actor*>       ActorList;
     typedef vector<Signal>       SignalList;
 
@@ -301,9 +301,7 @@ typedef list<sound::SoundDamping> SoundDampingList;
 
         void add_actor (Actor *a);
         void add_actor (Actor *a, const V2 &pos);
-        Actor * yield_actor(Actor *a);
-        void exchange_actors(Actor *a1, Actor *a2);
-        void did_move_actor(Actor *a);
+
         void tick_actor(Actor *a, double dtime);
 
         void revoke_delayed_impulses(const Stone *target);
@@ -316,29 +314,19 @@ typedef list<sound::SoundDamping> SoundDampingList;
         V2 get_local_force (Actor *a);
         V2 get_global_force (Actor *a);
 
-        void advance_actor (Actor *a, double &dt);
+        void advance_actor (Actor *a, double h);
         void move_actors (double dtime);
-        void find_contact_with_stone(Actor *a, GridPos p, StoneContact &c, 
-                DirectionBits winFacesActorStone = NODIRBIT,
-                bool isRounded = true, Stone *st = NULL);
-        void find_contact_with_edge(Actor *a, GridPos pe, GridPos p1, GridPos p2, 
-                StoneContact &c0, StoneContact &c1, StoneContact &c2,
-                DirectionBits winFacesActorStone = NODIRBIT);
-        void find_contact_with_window(Actor *a, GridPos p, StoneContact &c0, StoneContact &c1,
-                DirectionBits winFacesActorStone);
-        void find_stone_contacts(Actor *a, StoneContact &c0, StoneContact &c1,
-                StoneContact &c2);
+        void find_contact_with_stone (Actor *a, GridPos p, StoneContact &c);
+        void find_stone_contacts (Actor *a, StoneContactList &cl);
         void handle_stone_contact (StoneContact &sc);
         void handle_actor_contacts ();
-        void handle_actor_contact (Actor *actor1, Actor *actor2);
-        void handle_stone_contacts(unsigned actoridx);
+        void handle_actor_contact (size_t a1, size_t a2);
+        void handle_contacts (unsigned actoridx);
         void handle_delayed_impulses (double dtime);
         void stone_change (GridPos p);
         void tick_sound_dampings ();
 
     public:
-    
-        static const double contact_e;  // epsilon distant limit for contacts 
 
         /* ---------- Variables ---------- */
 
@@ -346,8 +334,6 @@ typedef list<sound::SoundDamping> SoundDampingList;
         int                  w, h; // Width and height of the level
         ForceList            forces;
         ActorList            actorlist; // List of movable, dynamic objects
-        Actor               *leftmost_actor;   // sorted double linked list of actors
-        Actor               *rightmost_actor;  
         vector<RubberBand *> m_rubberbands;
         SignalList           m_signals;
         MouseForce           m_mouseforce;

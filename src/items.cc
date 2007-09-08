@@ -182,7 +182,7 @@ namespace
         }
 
         bool is_on() const {
-            return getAttr("on") == 1;
+            return int_attrib("on") == 1;
         }
 
         void set_on (bool newon) {
@@ -233,11 +233,11 @@ namespace
         DECL_TRAITS;
 
         void on_pickup(Actor *) {
-            int code = getAttr("code");
+            int code = int_attrib("code");
             fprintf(stderr, "Picked up item 0x%x\n", code);
         }
         void on_drop(Actor *) {
-            int code = getAttr("code");
+            int code = int_attrib("code");
             fprintf(stderr, "Dropped item 0x%x\n", code);
         }
     public:
@@ -451,7 +451,8 @@ namespace
                 for (int idx=0; GetSignalTargetPos (this, keystonepos, idx); ++idx) {
                     Stone *st = GetStone(keystonepos);
                     if (st && st->is_kind("st-key"))
-                        st->set_attrib("keycode", getAttr("keycode"));
+                        st->set_attrib("keycode",
+                                       int_attrib("keycode"));
                 }
             }
             return Value();
@@ -846,7 +847,7 @@ void Hollow::check_if_level_finished()
          hi != instances.end(); ++hi)
     {
         const Hollow& h         = **hi;
-        bool          essential = (h.getAttr("essential") != 0);
+        bool          essential = h.int_attrib("essential") != 0;
 
         if (h.whiteball && (server::LevelTime - h.enter_time) >= MINTIME) {
             if (essential) ess_wcnt++;
@@ -864,7 +865,10 @@ void Hollow::check_if_level_finished()
 }
 
 void Hollow::setup_successor(Item *newitem) {
-    newitem->set_attrib("essential", getAttr("essential"));
+    const Value *essential = get_attrib("essential");
+    if (essential != NULL) {
+        newitem->set_attrib("essential",*essential);
+    }
 }
 
 
@@ -1066,8 +1070,8 @@ namespace
 
         ItemAction activate(Actor *, GridPos)
         {
-            if (Value v = getAttr("text")) {
-                std::string txt(v);
+            string txt;
+            if (string_attrib ("text", &txt)) {
                 lev::Proxy *level = lev::Proxy::loadedLevel();
                 // after complete switch to Proxy as levelloader the following
                 // conditional can be abolished
@@ -1356,7 +1360,7 @@ Trigger::Trigger()
 
 void Trigger::init_model()
 {
-    if (getAttr("invisible") != 0)
+    if (int_attrib("invisible"))
         set_model("invisible");
     else if (m_pressedp)
         set_model("it-trigger1");
@@ -1572,7 +1576,7 @@ namespace
 
             void add_force(Actor *a, V2 &f) {
                 if (m_active) {
-                    V2 dv = center - a->get_pos_force();
+                    V2 dv = center - a->get_pos();
                     double dist = length(dv);
 
                     if (dist >= 0.2 && dist < range)
@@ -1590,21 +1594,25 @@ namespace
         DECL_TRAITS_ARRAY(2, is_on());
     public:
         Magnet(bool onoff) : OnOffItem (onoff) {
+            set_attrib ("strength", Value()); // 30.0
+            set_attrib ("range", Value());
         }
     private:
         void on_creation (GridPos p) {
-            double range = getAttr("range", server::MagnetRange);
-            double strength = getAttr("strength", server::MagnetForce);
+            double range = server::MagnetRange;
+	    double_attrib("range", &range);
+
+            double strength = server::MagnetForce;
+	    double_attrib("strength", &strength);
 
             ff.m_active = is_on();
             ff.set_pos (p);
-	        ff.set_range (range);
-	        ff.set_strength (strength);
+	    ff.set_range (range);
+	    ff.set_strength (strength);
 
             world::AddForceField(&ff);
             Item::on_creation (p);
         }
-        
         void on_removal (GridPos p) {
             Item::on_removal(p);
             world::RemoveForceField(&ff);
@@ -1671,6 +1679,11 @@ namespace
         DECL_TRAITS_ARRAY(2, is_on());
     public:
         WormHole(bool onoff_) : OnOffItem(onoff_) {
+            set_attrib("targetx", Value());
+            set_attrib("targety", Value());
+            set_attrib("strength", Value());
+            set_attrib("range", Value());
+            set_attrib("interval", Value()); // see get_interval() for default
             state = TELEPORT_IDLE;
             justWarping = false;
         }
@@ -1700,10 +1713,12 @@ namespace
         void set_forcefield() {
             if (is_on()) {
                 ff.set_pos(get_pos());
-                double range = getAttr("range", server::WormholeRange);
+                double range = server::WormholeRange;
+                double_attrib("range", &range);
                 ff.set_range (range);
 
-                double s = getAttr("strength", server::WormholeForce);
+                double s = server::WormholeForce;
+                double_attrib("strength", &s);
                 ff.set_strength (s);
 
                 world::AddForceField(&ff);
@@ -1719,7 +1734,9 @@ namespace
         bool get_target (V2 &targetpos);
 
         double get_interval() const {
-            return getAttr("interval");
+            double interval = 0.0;
+            double_attrib("interval", &interval);
+            return interval;
         }
 
         // Variables.
@@ -1734,11 +1751,9 @@ namespace
 }
 
 bool WormHole::get_target(V2 &targetpos) {
-    Value vx = getAttr("targetx");
-    Value vy = getAttr("targety");
-    if (vx && vy) {
-        targetpos[0] = vx;
-        targetpos[1] = vy;
+    V2 t;
+    if (double_attrib("targetx", &t[0]) && double_attrib("targety", &t[1])) {
+        targetpos = t;
         return true;
     }
     else {
@@ -1897,6 +1912,9 @@ Vortex::Vortex(bool opened)
   m_target_index (0),
   m_target_vortex(0)
 {
+    set_attrib ("autoclose", Value());
+    set_attrib ("targetx", Value());
+    set_attrib ("targety", Value());
 }
 
 Vortex::~Vortex() {
@@ -2012,11 +2030,9 @@ bool Vortex::get_target_by_index (int idx, V2 &target)
     }
     // no signal defined
     else if (idx == 0) {
-        Value vx = getAttr("targetx");
-        Value vy = getAttr("targety");
-        if (vx && vy) {
-            target[0] = vx;
-            target[1] = vy;
+        V2 t;
+        if (double_attrib("targetx", &t[0]) && double_attrib("targety", &t[1])) {
+            target = t;
             return true;
         }
     }
@@ -2233,20 +2249,10 @@ namespace
             sound_event ("puller");
         }
         void animcb() {
-            Direction dir = get_orientation();
-            
-            // usage within a st-window
-            Stone *stone = world::GetStone(get_pos());
-            if (stone && (stone->get_traits().id == st_window) &&
-                    to_bool(SendMessage(stone, "inner_pull", dir))) {
-            }
-            
-            // usage in front of a stone
-            else {
-                GridPos   stonepos = move(get_pos(), reverse(dir));
-                send_impulse(stonepos, dir);
-            }
-            
+            Direction dir      = get_orientation();
+            GridPos   stonepos = move(get_pos(), reverse(dir));
+
+            send_impulse(stonepos, dir);
             sound_event ("dynamite");
             replace (it_explosion1);
         }
@@ -2297,16 +2303,17 @@ namespace
             {
                 set_attrib("type", type);
                 set_attrib("fixed", 0.0);
+                set_attrib("brittleness", Value());
              }
 
         enum State { IDLE, CRACKING1, CRACKING2 } state;
         bool anim_end;
 
         int get_type() const {
-            int t = getAttr("type");
+            int t = int_attrib("type");
             return ecl::Clamp(t, 0, 4);
         }
-	    bool is_fixed() const { return getAttr("fixed") != 0; }
+	    bool is_fixed() const { return int_attrib("fixed") != 0; }
 
         void init_model() {
             if (int t=get_type()) {
@@ -2366,7 +2373,7 @@ namespace
             if (msg == "crack" && state==IDLE && !is_fixed()) {
                 int type = get_type();
                 if ((type == 0 && do_crack()) || (type > 0)) {
-                    set_attrib("type", Value((int)getAttr("type") + 1));
+                    set_attrib("type", Value(int_attrib("type") + 1));
                     sound_event ("crack");
                     init_model();
                 }
@@ -2380,12 +2387,14 @@ namespace
         }
 
         bool do_crack() {
-            if (!is_fixed()) {
-                double brittleness = getAttr("brittleness", server::Brittleness);
-                double rnd = DoubleRand(0, 1);
-                return rnd < brittleness;
-    	    } else
-                return false;
+	    if (!is_fixed()) {
+		double brittleness = server::Brittleness;
+		double_attrib ("brittleness", &brittleness);
+		double rnd = DoubleRand(0, 1);
+		return rnd < brittleness;
+	    }
+	    else
+		return false;
         }
     };
     ItemTraits Crack::traits[4] = {
@@ -2521,7 +2530,7 @@ namespace
     	    set_attrib("load", load);
         }
 
-        int get_load() const { return ecl::Clamp<int>(getAttr("load"),0,2); }
+        int get_load() const { return ecl::Clamp<int>(int_attrib("load"),0,2); }
         void set_load (int load) { set_attrib("load", ecl::Clamp<int>(load,0,2)); }
 
         void extinguish (GridPos p) {
@@ -2727,9 +2736,10 @@ Value Blocker::message(const string &msg, const Value &val)
         int open = -1;
 
         if (msg == "signal") {
-            if (val.getType() == Value::DOUBLE) {
+            if (val.get_type() == Value::DOUBLE) {
                 // val: 1 means "shrink", 0 means "grow"
-                open = (int)val;
+                open = static_cast<int>(val.get_double());
+//                 warning("received signal %i", open);
             }
             else {
                 ASSERT(0, XLevelRuntime, "Blocker: message 'signal' with wrong typed value");
@@ -3153,7 +3163,7 @@ namespace
         bool m_active;
 
         void actor_enter(Actor *a) {
-            if (!m_active && a->getAttr("player")) {
+            if (!m_active && a->get_attrib("player") != 0) {
                 GameTimer.set_alarm (this, 10);
             }
         }
@@ -3210,7 +3220,7 @@ namespace
                 if (Inventory *inv = player::MayPickup(a, NULL)) {
                     std::vector<Item *>::size_type oldSize = m_contents.size();
                     inv->takeItemsFrom(this);
-                    if (oldSize != m_contents.size() && !inv->willAddItem(this)) {
+                    if (oldSize != m_contents.size() && inv->is_full()) {
                         // some items have been picked up but the bag will not
                         // be picked up (and cause the following actions)
                         player::RedrawInventory (inv);
@@ -3380,8 +3390,6 @@ namespace
     };
     DEF_TRAITSF(VStrip, "it-vstrip", it_vstrip, itf_static);
 
-/* -------------------- it-surprise -------------------- */
-
     class SurpriseItem : public Item {
         CLONEOBJ(SurpriseItem);
         DECL_TRAITS;
@@ -3463,8 +3471,9 @@ namespace
         info->pos = olda->get_pos();
         info->vel = olda->get_vel();
 
-        if (Value v = olda->getAttr("player")) {
-            player::ReplaceActor((int)v, olda, newa);
+        int iplayer;
+        if (olda->int_attrib("player", &iplayer)) {
+            player::ReplaceActor (iplayer, olda, newa);
         }
 
         world::AddActor (newa);
@@ -3502,7 +3511,7 @@ namespace
         {
             const double ROTOR_LIFETIME = 5.0;
 
-            int     iplayer = a->getAttr("player");
+            int     iplayer = a->int_attrib("player");
             ActorID id      = get_id (a);
 
             if (id == ac_blackball || id == ac_whiteball) {
@@ -3513,13 +3522,10 @@ namespace
                 rotor->set_attrib ("controllers", Value (iplayer+1));
                 rotor->set_attrib ("player", Value (iplayer));
                 rotor->set_attrib ("gohome", Value (0.0));
-                rotor->set_attrib ("essential", a->getAttr("essential"));
+                rotor->set_attrib ("essential", Value(a->int_attrib("essential")));
                 std::string essId;
-                if (Value v = a->getAttr("essential_id")) {
-                    essId = v.to_string();
-                } else {
+                if (!a->string_attrib ("essential_id", &essId))
                     essId = a->get_traits().name;
-                }
                 rotor->set_attrib ("essential_id", Value(essId));
 
                 replace_actor (a, rotor);
@@ -3546,9 +3552,12 @@ namespace
 
         ItemAction activate(Actor *a, GridPos p) {
             // Default values for the rubberband:
-            double strength = getAttr("strength", 10.0);
-            double length = getAttr("length", 1.0);
-            double minlength = getAttr("minlength", 0.0);
+            double strength = 10.0;
+            double length = 1.0;
+            double minlength = 0.0;
+            double_attrib ("strength", &strength);
+            double_attrib ("length", &length);
+            double_attrib ("minlength", &minlength);
 
             world::RubberBandData rbd;
             rbd.strength = strength;
@@ -3556,15 +3565,16 @@ namespace
             rbd.minlength = minlength;
 
             // Target to connect to, default: ""
-            std::string target(getAttr("target"));
-            
+            string target = "";
+            string_attrib("target",&target);
             // TODO: Multiple Targets!
             // TODO: Target for black and target for white marble?
             // TODO: MultiplayerGame: Defaulttarget is second actor!
 
             // The mode attribute "scissor" defines, if when using an it-rubberband,
             // other rubberbands to the actor will be cut of or not, true means they will. false is default.
-            bool isScissor = to_bool(getAttr("scissor"));
+            enigma::Value const *scissorValue = get_attrib("scissor");
+            bool isScissor = (scissorValue == NULL)? false : to_bool(*scissorValue);
 
             // Get actor or stone with the name, given in "connect_to":
             Actor *target_actor = dynamic_cast<Actor*>(GetNamedObject(target));
@@ -3577,12 +3587,8 @@ namespace
                 world::KillRubberBands (a);
 
             sound_event ("rubberband");
-            if (target_actor) {
-                // It's not allowed to connect a rubberband to self.
-                if (target_actor != a)
-                    world::AddRubberBand (a,target_actor,rbd);
-                else
-                    return ITEM_DROP; }
+            if (target_actor)
+                world::AddRubberBand (a,target_actor,rbd);
             else
                 world::AddRubberBand (a,target_stone,rbd);
 

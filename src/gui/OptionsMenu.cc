@@ -126,11 +126,11 @@ namespace enigma { namespace gui {
     class VideoModeButton : public TextButton {
 
         video::VideoModes get_mode() const {
-            int mode = Clamp(app.prefs->getInt("VideoMode1.1"), 0, int(video::VM_COUNT));
+            int mode = Clamp(options::GetInt("VideoMode"), 0, int(video::VM_COUNT));
             return static_cast<video::VideoModes>(mode);
         }
         string get_text() const {
-            return video::GetInfo(get_mode())->name;
+            return GetInfo(get_mode())->name;
         }
         void on_action(Widget *) {
             int mode = get_mode();
@@ -141,9 +141,9 @@ namespace enigma { namespace gui {
                 if (mode >= video::VM_COUNT) 
                     mode = 0;
 
-                const video::VMInfo *vminfo = video::GetInfo (static_cast<video::VideoModes>(mode));
+                const video::VMInfo *vminfo = GetInfo (static_cast<video::VideoModes>(mode));
                 if (vminfo->available) {
-                    app.prefs->setProperty("VideoMode1.1", mode);
+                    options::SetOption("VideoMode", mode);
                     invalidate();
                     break;
                 }
@@ -153,7 +153,7 @@ namespace enigma { namespace gui {
         VideoModeButton() : TextButton(this) { }
     };
 
-
+
     /* -------------------- SoundSetButton -------------------- */
     
     SoundSetButton::SoundSetButton() : ValueButton(0, 1) {
@@ -174,7 +174,7 @@ namespace enigma { namespace gui {
         return _(sound::GetOptionSoundSetText(value).c_str());
     }
 
-
+    
     /* -------------------- StereoButton -------------------- */
     
     StereoButton::StereoButton() : ValueButton(-1, 1)
@@ -211,11 +211,11 @@ namespace enigma { namespace gui {
         return string();
     }
     
-
+    
     /* -------------------- FullscreenButton -------------------- */
     
     FullscreenButton::FullscreenButton()
-        : BoolOptionButton("FullScreen1.1", N_("Yes"), N_("No"), this)
+        : BoolOptionButton("FullScreen", N_("Yes"), N_("No"), this)
     {
     }
     
@@ -309,7 +309,8 @@ namespace enigma { namespace gui {
         return ecl::strf ("%d", value-5);
     }
     
-
+    
+    
     /* -------------------- Options Menu -------------------- */
     
     OptionsMenu::OptionsMenu(ecl::Surface *background_)
@@ -457,10 +458,9 @@ namespace enigma { namespace gui {
     
     void OptionsMenu::draw_background(ecl::GC &gc)
     {
-        const video::VMInfo *vminfo = video::GetInfo();
         video::SetCaption(("Enigma - Options Menu"));
     //     blit(gc, 0,0, enigma::GetImage("menu_bg"));
-        blit(gc, vminfo->mbg_offsetx, vminfo->mbg_offsety, background);
+        blit(gc, 0,0, background);
     }
     
 /* -------------------- Functions -------------------- */

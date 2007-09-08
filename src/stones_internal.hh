@@ -88,7 +88,7 @@ namespace stones
         }
 
         bool is_on() const { 
-            return getAttr("on") == 1; 
+            return int_attrib("on") == 1; 
         }
 
         virtual void set_on(bool newon) {
@@ -115,34 +115,5 @@ namespace stones
             return Value();
         }
     };
-/* -------------------- ConnectiveStone -------------------- */
-
-// base class for PuzzleStone and BigBrick
-
-
-    class ConnectiveStone : public Stone {
-    public:
-        ConnectiveStone(const char *kind, int connections): Stone(kind) {
-            set_attrib("connections", connections);
-        }
-
-        DirectionBits get_connections() const {
-            int conn = (int)getAttr("connections") - 1;
-            if (conn >=0 && conn <16)
-                return DirectionBits(conn);
-            else
-                return NODIRBIT;
-        }
-
-    protected:
-        virtual void init_model() {
-            set_model(get_kind()+ecl::strf("%d", get_modelno()));
-        }
-
-        virtual int get_modelno() const {
-            return getAttr("connections");
-        }
-    };
-
 }
 #endif

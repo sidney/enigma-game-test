@@ -75,14 +75,14 @@ namespace
     lua::Error _lua_err_code (int i)
     {
         switch (i) {
-            case 0: return NO_LUAERROR;
-            case LUA_ERRRUN: return ERRRUN;
-            case LUA_ERRFILE: return ERRFILE;
-            case LUA_ERRSYNTAX: return ERRSYNTAX;
-            case LUA_ERRMEM: return ERRMEM;
-            case LUA_ERRERR: return ERRERR;
-        }
-        assert (!"Should never get there!");
+	case 0: return NO_LUAERROR;
+	case LUA_ERRRUN: return ERRRUN;
+	case LUA_ERRFILE: return ERRFILE;
+	case LUA_ERRSYNTAX: return ERRSYNTAX;
+	case LUA_ERRMEM: return ERRMEM;
+	case LUA_ERRERR: return ERRERR;
+	}
+	assert (!"Should never get there!");
     }
 
     void throwLuaError(lua_State * L, const char * message) {
@@ -139,17 +139,10 @@ void lua::SetTableVar (lua_State *L,
 static void
 push_value(lua_State *L, const Value &val)
 {
-    switch (val.getType()) {
-        case Value::NIL:
-        case Value::DEFAULT :
-            lua_pushnil(L);
-            break;
-        case Value::DOUBLE:
-            lua_pushnumber(L, val.get_double());
-            break;
-        case Value::STRING:
-            lua_pushstring(L, val.get_string());
-            break;
+    switch (val.get_type()) {
+    case Value::NIL: lua_pushnil(L); break;
+    case Value::DOUBLE: lua_pushnumber(L, to_double(val)); break;
+    case Value::STRING: lua_pushstring(L, to_string(val)); break;
     }
 }
 
@@ -258,7 +251,13 @@ en_get_attrib(lua_State *L)
         return 0;
     }
 
-    push_value(L, obj->getAttr(key));
+    const Value *v =  obj->get_attrib(key);
+    if (!v) {
+        // unknown attribute
+        lua_pushnil(L);
+    }
+    else
+        push_value(L, *v);
     return 1;
 }
 
@@ -295,12 +294,12 @@ en_set_floor(lua_State *L)
 
     if (lua_isnil(L, 3))
         fl = 0;
-    else {
-         fl = dynamic_cast<Floor *>(to_object(L, 3));
-         if (!fl) {
-             throwLuaError(L, "object argument 3 must be a floor or nil");
-         }
-    }
+    else if (is_object(L,3)) {
+        fl = static_cast<Floor*>(*(static_cast<void**> (lua_touserdata(L,3))));
+    	if( ! fl)
+	    throwLuaError(L, "object is no valid floor");
+    } else
+        throwLuaError(L, "argument 3 must be an Object or nil");
     world::SetFloor(GridPos(x,y), fl);
     return 0;
 }

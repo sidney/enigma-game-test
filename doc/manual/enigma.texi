@@ -641,7 +641,6 @@ point of the black and the white marble respectively.
 * Bolder Stones::             
 * Puzzle Stones::               
 * Mail Stones::                 
-* Chess Stones::
 @end menu
 
 @node Lethal Stones, Swap Stones, Stones, Stones
@@ -770,7 +769,7 @@ unit. They behave like the blue puzzle stones do when you hit them
 with a magic wand: The block explodes if it's fully connected, or
 you shuffle the touched row or column of the block.  
 
-@node Mail Stones, Chess Stones, Puzzle Stones, Stones
+@node Mail Stones,  , Puzzle Stones, Stones
 @subsection Mail Stones
 
 @image{images/st-mail,,0.7cm}
@@ -786,28 +785,14 @@ Be careful: the mail stone does not work if an object is already
 at the end of the pipeline.  It's very easy to inadvertently send
 objects that afterwards block the pipeline, so be careful!
 
-@node Chess Stones,  , Mail Stones, Stones
-@subsection Chess Stones
-
-@image{images/st-chess,,0.7cm}
-
-Like many other stones, the chess stones are movable as well. But in contrast
-to all other stones, they move in the way of a chess knight, i.e. two squares
-in one direction and one square in another. Always hit a chess stone under an
-angle -- it will then move two squares in the direction of your hit and one
-square in the direction given by this angle. It's quite difficult to hit them
-correctly, and needs some practice, just as riding!
-
-The black chess stone can only be moved by a black marble, the white chess
-stone by a white marble. The name (chess stone instead of knight stone or horse
-stone) results from the simple fact that there already are gaming objects named
-knights and horses.
-
 @c @node Turnstiles, Bolder Stones, Puzzle Stones, Stones
 @c @subsection Turnstiles
 
+
+
 @c @node Bolder Stones, Elastics and Scissors, Turnstiles, Stones
 @c @subsection Bolder Stones
+
 
 @c @node Elastics and Scissors,  , Bolder Stones, Stones
 @c @subsection Elastics and Scissors
@@ -820,7 +805,6 @@ knights and horses.
 * Backup::                      What to backup for security
 * Registering Scores::          Let the world know your success
 * Updating Enigma::             Keeping scores and levels on an update
-* User Sound Sets::             How to install sound sets from the internet
 @end menu
 
 @node User Level Packs, Backup, Advanced Topics, Advanced Topics
@@ -869,7 +853,7 @@ homepage for more detailed instructions.
 To automatically download the updated world record score lists, you just need to
 enable the option @samp{Ratings Update}.
 
-@node Updating Enigma, User Sound Sets, Registering Scores, Advanced Topics
+@node Updating Enigma, , Registering Scores, Advanced Topics
 @section Updating Enigma
 
 If you did not customize your old Enigma version, simply deinstall the old
@@ -888,33 +872,6 @@ systems with a @samp{HOME} environment variable or
 @samp{.../Application Data/enigmarc.lua2} for HOMEless Windows systems.
 If you want to read levels that you saved from the old installation, please
 read the Reference Manual.
-
-@node User Sound Sets, , Updating Enigma, Advanced Topics
-@section User Sound Sets
-
-A sound set is the sum of all sounds that appear in the game and the menus. 
-Enigma 1.01 and above allows you to switch between the default sound set and
-sound sets you downloaded from the internet or created yourself.
-
-To install a downloaded sound set, close Enigma and create a subdirectory named
-@samp{soundsets} in your @samp{User Path}. Unpack the downloaded 
-sound set if neccessary. Its files should all be inside one directory with the
-name of the soundset, e.g. @samp{MyGreatSounds15}. Move this directory into the
-@samp{soundsets} directory. Check that the @samp{soundset.lua} file is now
-located at @samp{soundsets/MyGreatSounds15/soundset.lua}. Start Enigma and open
-the @samp{Options} menu. Click on the @samp{Sound set} button until the new
-sound set appears. Switch back to @samp{Default} or @samp{Enigma} to activate
-the old sound set again.
-
-To uninstall a sound set, close Enigma and remove the directory
-which contains the obsolete sound set (e.g. @samp{MyGreatSounds15}). You need
-not remove the @samp{soundsets} directory.
-
-Please find a detailed explanation on how to create sound sets yourself in the
-Reference Manual and in the sample file @samp{soundset.lua} which is located in
-the same directory as the Reference Manual. You can download sound sets that
-other users submitted to us from
-@samp{http://svn.berlios.de/svnroot/repos/enigma-game/add-ons/soundsets}.
 
 @node Spoilers, Credits, Advanced Topics, Top
 @chapter Spoilers

@@ -49,7 +49,7 @@ std::istream& operator>> ( std::istream &is, ZipLocalEntry &zlh         ) {
 }
 
 
-std::istream& operator>> ( std::istream &is, DataDescriptor & ) {
+std::istream& operator>> ( std::istream &is, DataDescriptor &dd ) {
   return is ;
 }
 

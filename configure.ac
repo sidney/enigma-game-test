@@ -4,7 +4,6 @@ AC_PREREQ(2.59)
 AC_CANONICAL_BUILD
 AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([src/enigma.cc])
-AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE(AC_PACKAGE_TARNAME, AC_PACKAGE_VERSION, -)
 AC_CONFIG_HEADERS([src/config.h])
@@ -124,7 +123,7 @@ SDL_LIBS="$SDL_LIBS -lSDL_image -lSDL_mixer"
 AC_CHECK_LIB(SDL_mixer, Mix_QuickLoad_RAW, have_mix_quickload="yes", have_mix_quickload="no")
 
 if test "$have_mix_quickload" = no; then
-  AC_MSG_ERROR([SDL_mixer >= 1.2.5 is required to compile Enigma])
+   AC_MSG_ERROR([SDL_mixer >= 1.2.5 is required to compile Enigma])
 fi
 
 dnl ----------------------------------------
@@ -162,11 +161,7 @@ LIBS="$LIBS_NOSDL"
 dnl ----------------------------------------
 dnl Check for libpng
 dnl ---------------------------------------
-if test "$MINGW32" = yes; then
-  AC_CHECK_LIB(png12,png_create_write_struct,,[AC_MSG_ERROR([libpng is required to compile Enigma])])
-else
-  AC_CHECK_LIB(png,png_create_write_struct,,[AC_MSG_ERROR([libpng is required to compile Enigma])])
-fi
+AC_CHECK_LIB(png,png_create_write_struct,,[AC_MSG_ERROR([libpng is required to compile Enigma])])
 
 dnl ----------------------------------------
 dnl Check for xerces
@@ -176,7 +171,7 @@ if test "$MINGW32" = yes; then
   AC_EGREP_HEADER([gXercesMajVersion = 3],[xercesc/util/XercesVersion.hpp],
       [AC_MSG_RESULT([found])],
       [AC_MSG_ERROR([not found])])      
-   AC_CHECK_LIB(xerces-c, main,,[AC_MSG_ERROR([xerces is required to compile Enigma])])
+   AC_CHECK_LIB(xerces, main,,[AC_MSG_ERROR([xerces is required to compile Enigma])])
 else
   AC_MSG_CHECKING([for Xerces 3.0 experimental version])
   AC_EGREP_HEADER([gXercesMajVersion = 3],[xercesc/util/XercesVersion.hpp],
@@ -184,7 +179,7 @@ else
       xerces3exp="no")      
   if test "x$xerces3exp" = xyes; then
     AC_MSG_RESULT([found])
-    AC_CHECK_LIB(xerces-c, main,,[AC_MSG_ERROR([xerces is required to compile Enigma])])
+    AC_CHECK_LIB(xerces, main,,[AC_MSG_ERROR([xerces is required to compile Enigma])])
   else
     AC_MSG_RESULT([not found])
     AC_MSG_CHECKING([for Xerces >=2.4 released version])
@@ -199,11 +194,6 @@ else
     AC_CHECK_LIB(xerces-c, main,,[AC_MSG_ERROR([xerces is required to compile Enigma])])
   fi
 fi
-
-dnl ----------------------------------------
-dnl Check for libcurl
-dnl ---------------------------------------
-AC_CHECK_LIB(curl,curl_global_init,,[AC_MSG_ERROR([libcurl is required to compile Enigma])])
 
 dnl ----------------------------------------
 dnl Activate optimizations when profiling, to get rid of
@@ -292,23 +282,6 @@ else
 fi
 
 dnl ----------------------------------------
-dnl Check for profiling
-dnl ----------------------------------------
-
-AC_MSG_CHECKING(whether to profile the game)
-AC_ARG_ENABLE(profile,
-  AS_HELP_STRING(--enable-profile,Compile with profiling option for gdb), ,
-  enable_profile=no
-)
-if test "x$enable_profile" = xyes; then
-	CXXFLAGS="$CXXFLAGS -pg"
-	AC_MSG_RESULT(yes)
-else
-	CXXFLAGS="$CXXFLAGS"
-	AC_MSG_RESULT(no)
-fi
-
-dnl ----------------------------------------
 dnl Check for C++ Lua
 dnl ----------------------------------------
 
@@ -356,7 +329,6 @@ AC_CONFIG_FILES([Makefile m4/Makefile  intl/Makefile
            data/gfx32/Makefile
            data/gfx40/Makefile
            data/gfx48/Makefile
-           data/gfx64/Makefile
            data/levels/Makefile
            data/levels/enigma_tutorial/Makefile
            data/levels/enigma_i/Makefile

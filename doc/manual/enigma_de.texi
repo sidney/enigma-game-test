@@ -696,7 +696,6 @@ festlegen.
 * Bolder-Steine::          
 * Puzzle-Steine::               
 * Poststeine::                  
-* Schachsteine::
 @end menu
 
 @node Toedliche Steine, Wechselsteine, Steine, Steine
@@ -846,7 +845,7 @@ Puzzlesteine lassen sich nicht verschieben und man muss keinen
 Zauberstab benutzen, um Zeilen und Spalten umzuordnen oder die Steine
 zum explodieren zu bringen.
 
-@node Poststeine, Schachsteine, Puzzle-Steine, Steine
+@node Poststeine,  , Puzzle-Steine, Steine
 @subsection Poststeine
 
 @image{images/st-mail,,0.7cm}
@@ -864,30 +863,14 @@ Gegenstand am Ende des Rohres liegt.  Wenn man nicht aufpasst, kann es
 leicht passieren, dass man irrt@"umlich ein falsches Objekt verschickt,
 das danach den Postweg versperrt!
 
-@node Schachsteine,  , Poststeine, Steine
-@subsection Schachsteine
-
-@image{images/st-chess,,0.7cm}
-
-Wie viele andere Steine auch, sind die Schachsteine beweglich. Aber im
-Gegensatz zu allen anderen Steinen bewegen sie sich durch R@"osselspr@"unge,
-d.h. zwei Felder in eine Richtung und ein Feld in eine andere. Zielen sie auf
-einen Schachstein immer unter einem Winkel; er wird sich dann zwei Felder in
-Richtung des Schlages bewegen und ein Feld in die Richtung, die durch den
-Winkel angegeben ist. Es ist recht schwierig, die Schachsteine korrekt zu
-treffen und ben@"otigt etwas @"Ubung, gerade so wie Reiten!
-
-Der schwarze Schachstein kann nur von der schwarzen Murmel bewegt werden, der
-wei@ss{}e Schachstein nur von der wei@ss{}en Murmel. Der Name (Schachstein
-statt Springerstein oder Pferdestein) resultiert daraus, dass es bereits
-Spielobjekte gibt, die die englischen Namen des Springers tragen (Ritter oder
-Pferd). Der deutsche Name ist die w@"ortliche @"Ubersetzung.
-
 @c @node Turnstiles, Bolder Stones, Puzzle Stones, Stones
 @c @subsection Turnstiles
 
+
+
 @c @node Bolder Stones, Elastics and Scissors, Turnstiles, Stones
 @c @subsection Bolder Stones
+
 
 @c @node Elastics and Scissors,  , Bolder Stones, Stones
 @c @subsection Elastics and Scissors
@@ -896,11 +879,10 @@ Pferd). Der deutsche Name ist die w@"ortliche @"Ubersetzung.
 @chapter Fortgeschrittene Themen
 
 @menu
-* User-Levelpakete::            History, Search Result und Auto
-* Backups::                     Was in ein Sicherheits-Backup sollte
-* Ergebnisse hochladen::        Lassen Sie die Welt von Ihren Erfolgen wissen
-* Enigma updaten::              Rekorde und Levels auf dem neuesten Stand halten
-* Sound-Schemas::               Wie Sie Soundsets aus dem Internet installieren k@"onnen
+* User-Levelpakete::            History, Search Results and Auto
+* Backups::                     What to backup for security
+* Ergebnisse hochladen::        Let the world know your success
+* Enigma updaten::              Keeping scores and levels on an update
 @end menu
 
 @node User-Levelpakete, Backups, Fortgeschrittene Themen, Fortgeschrittene Themen
@@ -961,7 +943,7 @@ Um automatisch die aktuellste Weltrekordliste herunterzuladen,
 aktivieren Sie einfach die Option @samp{Update Bewertungen} im
 @ref{Einstellungen}-Men@"u.
 
-@node Enigma updaten, Sound-Schemas, Ergebnisse hochladen, Fortgeschrittene Themen
+@node Enigma updaten, , Ergebnisse hochladen, Fortgeschrittene Themen
 @section Enigma updaten
 
 Sofern Sie Ihre alte Enigma-Version nicht pers@"onlich angepasst haben,
@@ -985,38 +967,6 @@ Enigma 1.00 l@"oschen.
 Falls Sie Landschaften aus Ihrer alten Version nach Enigma 1.00
 @"ubernehmen m@"ochten, konsultieren Sie bitte das Referenz-Handbuch, da
 sich das Levelformat ver@"andert hat.
-
-@node Sound-Schemas, , Enigma updaten, Fortgeschrittene Themen
-@section Sound-Schemas
-
-Ein Sound-Schema (Soundset) ist die Gesamtheit aller Sounds im Spiel und in den
-Men@"us. Enigma 1.01 und j@"unger erlauben es Ihnen, zwischen dem
-Standard-Sound-Schema und solchen Sound-Schemas zu wechseln, die Sie aus dem
-Internet heruntergeladen oder selbst erstellt haben.
-
-Um ein heruntergeladenes Sound-Schema zu installieren, schlie@ss{}en Sie Enigma
-und erstellen Sie ein Unterverzeichnis @samp{soundsets} in Ihrem
-@samp{Userpfad}. Entpacken Sie das heruntergeladene Sound-Schema falls n@"otig.
-Dessen Dateien sollten sich alle in einem Verzeichnis mit dem Namen des Schemas
-befinden, z.B. @samp{MeineTollenSounds15}. Verschieben Sie dieses Verzeichnis in
-das @samp{soundsets}-Verzeichnis. Stellen Sie sicher, dass sich die Datei
-@samp{soundset.lua} jetzt unter
-@samp{soundsets/MeineTollenSounds15/soundset.lua} befindet. Starten Sie Enigma
-und @"offnen Sie die @samp{Einstellungen}. Klicken Sie auf @samp{Sound Schema}
-bis das neue Sound-Schema erscheint. Wechseln Sie zur@"uck zu @samp{Standard}
-oder @samp{Enigma} um das alte Schema wieder zu aktivieren.
-
-Um ein Sound-Schema zu deinstallieren, schlie@ss{}en Sie Enigma und entfernen
-Sie das Verzeichnis, das das unn@"otige Sound-Schema enth@"alt (z.B.
-@samp{MeineTollenSounds15}). Das @samp{soundsets}-Verzeichnis brauchen Sie
-nicht zu entfernen.
-
-F@"ur eine detaillierte Beschreibung, wie Sie Sound-Schemas selbst erstellen
-k@"onnen, lesen Sie bitte das Referenz-Handbuch oder die Beispieldatei
-@samp{soundset.lua}, die sich im gleichen Verzeichnis befindet wie das
-Referenz-Handbuch. Sie k@"onnen Sound-Schemas, die andere Spieler @"ubermittelt
-haben, herunterladen von
-@samp{http://svn.berlios.de/svnroot/repos/enigma-game/add-ons/soundsets}.
 
 @node Tipps und Tricks, Autoren und Danksagungen, Fortgeschrittene Themen, Top
 @chapter Tipps und Tricks

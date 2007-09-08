@@ -338,12 +338,6 @@ bool GameFS::findImageFile (const string &basename, string &filename)
     const video::VMInfo *vminfo = video::GetInfo();
     string fname = string(vminfo->gfxdir) + basename;
     if (!findFile(fname, filename)) {
-        // temporary workaround for incomplete 64 bit images
-        if (vminfo->tt == video::VTS_64) {
-            fname = string("gfx32/") + basename;
-            if (findFile(fname, filename))
-                return true;
-        }
         fname = string ("gfx/") + basename;
         return findFile(fname, filename);
     }
