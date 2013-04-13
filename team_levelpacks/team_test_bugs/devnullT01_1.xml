@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<el:level xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://enigma-game.org/schema/level/1 level.xsd" xmlns:el="http://enigma-game.org/schema/level/1">
+  <el:protected>
+    <el:info el:type="level">
+      <el:identity el:title="Meditation Test v1.20" el:subtitle="" el:id="test_it_med"/>
+      <el:version el:score="1" el:release="1" el:revision="0" el:status="test"/>
+      <el:author  el:name="" el:email="" el:homepage=""/>
+      <el:copyright></el:copyright>
+      <el:license el:type="" el:open="true"/>
+      <el:compatibility el:enigma="1.10"/>
+      <el:modes el:easy="false" el:single="true" el:network="false"/>
+      <el:comments><el:code></el:code></el:comments>
+      <el:score el:easy="-" el:difficult="-"/>
+    </el:info>
+    <el:luamain><![CDATA[
+--Test Level for meditation bug in release 1.20, windows compilation 
+--only. A green floor near a meditation item (same column) means that 
+--"the level is successfully finished after an ac_pearl has resided for 
+--at least one second within the uneven area of an it_meditation" 
+--[Enigma Reference Manual, Chapter 4.4.8, Ending-Conditions].
+--Accordingly a red floor means the level is NOT finished.
+--Which means that there's something wrong with it_meditation_hollow, 
+--it_meditation_dent, it_meditation_caldera and it_meditation_bump. 
+--Also it_dynamite doesn't produce a working it_meditation.
+--Tested under Win XP Home.
+--04/06/2013
+
+ti[" "] = {"fl_sand"}
+ti["+"] = {"fl_lawn"}
+ti["-"] = {"fl_red"}
+ti["#"] = {"st_rawglass"}
+ti["o"] = {"it_meditation"}
+ti["h"] = {"it_meditation_hollow"}
+ti["H"] = {"it_meditation", state = MEDITATION_HOLLOW}
+ti["d"] = {"it_meditation_dent"}
+ti["D"] = {"it_meditation", state = MEDITATION_DENT}
+ti["c"] = {"it_meditation_caldera", name = "caldera"} .. ti["#"]
+ti["C"] = {"it_meditation", state = MEDITATION_CALDERA, name = "CALDERA"} .. ti["#"]
+ti["b"] = {"it_meditation_bump", name = "bump"} .. ti["#"]
+ti["B"] = {"it_meditation", state = MEDITATION_BUMP, name = "BUMP"} .. ti["#"]
+ti["l"] = {"it_meditation_hill", name = "hill"} .. ti["#"]
+ti["L"] = {"it_meditation", state = MEDITATION_HILL, name = "HILL"} .. ti["#"]
+ti["v"] = {"it_meditation_volcano", name = "volcano"} .. ti["#"]
+ti["V"] = {"it_meditation", state = MEDITATION_VOLCANO, name = "VOLCANO"} .. ti["#"]
+ti["!"] = {"it_dynamite"}
+ti["1"] = {"it_wormhole_off", destination = "CALDERA"}
+ti["2"] = {"it_wormhole_off", destination = "BUMP"}
+ti["3"] = {"it_wormhole_off", destination = "HILL"}
+ti["4"] = {"it_wormhole_off", destination = "VOLCANO"}
+ti["5"] = {"it_wormhole_off", destination = "hill"}
+ti["6"] = {"it_wormhole_off", destination = "volcano"}
+ti["7"] = {"it_wormhole_off", destination = "caldera"}
+ti["8"] = {"it_wormhole_off", destination = "bump"}
+ti["@"] = {"#ac_pearl"}
+wo(ti, " ", {
+    "####################",
+    "#  + + + + + + +   #",
+    "#                  #",
+    "#        o         #",
+    "#    1 H   D 2     #",
+    "#  3 C       B 4   #",
+    "#  L     @     V   #",
+    "#  l           v   #",
+    "#  5 c       b 6   #",
+    "#    7 h   d 8     #",
+    "#        !         #",
+    "#  + - - - - - +   #",
+    "####################"})
+ ]]></el:luamain>
+    <el:i18n>
+      <el:string el:key="title">
+        <el:english el:translate="false"/>
+      </el:string>
+    </el:i18n>
+  </el:protected>
+</el:level>

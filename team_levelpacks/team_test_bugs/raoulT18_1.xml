@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<el:level xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://enigma-game.org/schema/level/1 level.xsd" xmlns:el="http://enigma-game.org/schema/level/1">
+  <el:protected>
+    <el:info el:type="level">
+      <el:identity el:title="Activate as Dead" el:subtitle="" el:id="bug_activate_as_dead"/>
+      <el:version el:score="1" el:release="1" el:revision="1" el:status="experimental"/>
+      <el:author el:name="RB" el:email=""/>
+      <el:copyright>Copyright © 2013 RB</el:copyright>
+      <el:license el:type="GPL v2.0 or above" el:open="true"/>
+      <el:compatibility el:enigma="1.10"/>
+      <el:modes el:easy="false" el:single="true" el:network="false"/>
+      <el:score el:easy="-" el:difficult="-"/>
+    </el:info>
+    <el:luamain><![CDATA[
+ti[" "] = {"fl_sahara"}
+ti["#"] = {"st_rawglass"}
+ti["D"] = {"st_death"}
+
+ti["u"] = {"it_umbrella"}
+ti["o"] = {"it_drop"}
+ti["p"] = {"it_pencil"}
+ti["d"] = {"it_document"}
+ti["b"] = {"it_bottle"}
+ti["x"] = {"it_extinguisher"}
+ti["y"] = {"it_yinyang"}
+ti["s"] = {"it_spring"}
+ti["l"] = {"it_spoon"}
+ti["j"] = {"it_spade"}
+ti["r"] = {"it_ring"}
+ti["c"] = {"it_cherry"}
+
+ti["E"] = {"st_dispenser_extralife"}
+ti["O"] = {"st_oxyd"}
+ti["@"] = {"#ac_marble_black"}
+
+wo(ti, " ", {
+    "####################",
+    "#                  #",
+    "# D     u u u u c  #",
+    "#                  #",
+    "# l     o o o o c  #",
+    "#                  #",
+    "# O      @   s y O #",
+    "#                  #",
+    "# j     p p p p c  #",
+    "#                  #",
+    "# D  r  d d b b E  #",
+    "#                  #",
+    "####################"})
+
+wo:shuffleOxyd()
+ ]]></el:luamain>
+    <el:i18n>
+      <el:string el:key="title">
+        <el:english el:translate="false"/>
+      </el:string>
+    </el:i18n>
+  </el:protected>
+</el:level>
